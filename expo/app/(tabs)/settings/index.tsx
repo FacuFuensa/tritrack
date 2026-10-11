@@ -354,15 +354,21 @@ export default function SettingsScreen() {
 
           <View style={styles.settingsLinkDivider} />
 
-          <View style={styles.settingsLinkRow}>
+          <TouchableOpacity
+            style={styles.settingsLinkRow}
+            onPress={() => router.push('/ajustes' as never)}
+            activeOpacity={0.7}
+            testID="settings-notifications"
+          >
             <View style={[styles.settingsLinkIcon, { backgroundColor: Colors.accent + '15' }]}>
               <Bell size={18} color={Colors.accent} />
             </View>
             <View style={styles.settingsLinkText}>
-              <Text style={styles.settingsLinkTitle}>Notifications</Text>
-              <Text style={styles.settingsLinkSubtitle}>Activity syncs</Text>
+              <Text style={styles.settingsLinkTitle}>Notificaciones</Text>
+              <Text style={styles.settingsLinkSubtitle}>Probar notificación, en Ajustes</Text>
             </View>
-          </View>
+            <ChevronRight size={16} color={Colors.textTertiary} />
+          </TouchableOpacity>
         </GlassCard>
 
         <Text style={styles.sectionTitle}>DATA</Text>
