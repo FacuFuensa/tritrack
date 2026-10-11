@@ -1,5 +1,6 @@
 // Edge Function: trae las actividades de Strava, escribe TODAS en `activities`
-// y además sigue auto-marcando el workout_log de la PWA vieja (por ahora).
+// matchea cada una con plan_sessions y además sigue auto-marcando el
+// workout_log de la PWA vieja (por ahora).
 // Auth: JWT del usuario, o x-notify-secret + {user_id} (contrato C2).
 // verify_jwt=false a nivel gateway (CORS preflight); auth adentro.
 //
@@ -7,7 +8,7 @@
 // Refresh muerto o acceso revocado → 409 {error: 'reauth'} y la conexión
 // queda marcada como rota, sin borrar el token.
 import { adminClient, cors, hasNotifySecret, json, userFromJwt } from "../_shared/http.ts";
-import { brokenScope } from "../_shared/connection.ts";
+import { applyMatches, markBroken, stravaAccessToken } from "../_shared/strava.ts";
 import { clampDays, toActivityRow } from "./mapping.ts";
 
 // Disciplina de cada session_id. Es lo unico que el sync necesita saber del
@@ -73,38 +74,20 @@ Deno.serve(async (req: Request) => {
   if (!userId) return json({ error: "unauthorized" }, 401);
   const days = clampDays(body.days);
 
-  const { data: tokens } = await admin.from("strava_tokens").select("*").eq("user_id", userId).maybeSingle();
-  if (!tokens) return json({ error: "not connected" }, 400);
-
   // Conexión rota: se marca y se avisa con 409 para que la app ofrezca
   // "Reconectar". El token no se borra: el próximo OAuth lo pisa.
+  const tok = await stravaAccessToken(admin, userId);
+  if (!tok.ok) {
+    if (tok.reason === "not_connected") return json({ error: "not connected" }, 400);
+    if (tok.reason === "reauth") return json({ error: "reauth" }, 409);
+    if (tok.reason === "config") return json({ error: "no strava config" }, 500);
+    return json({ error: "refresh failed" }, 502);
+  }
+  const accessToken = tok.accessToken;
   const reauth = async () => {
-    await admin.from("strava_tokens").update({ scope: brokenScope(tokens.scope) }).eq("user_id", userId);
+    await markBroken(admin, userId);
     return json({ error: "reauth" }, 409);
   };
-
-  let accessToken = tokens.access_token;
-  if (tokens.expires_at <= Math.floor(Date.now() / 1000) + 60) {
-    const { data: cfg } = await admin.from("strava_config").select("*").single();
-    if (!cfg) return json({ error: "no strava config" }, 500);
-    const r = await fetch("https://www.strava.com/oauth/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        client_id: cfg.client_id, client_secret: cfg.client_secret,
-        grant_type: "refresh_token", refresh_token: tokens.refresh_token,
-      }),
-    });
-    // 400/401: el refresh token ya no sirve (revocado o inválido).
-    if (r.status === 400 || r.status === 401) return await reauth();
-    if (!r.ok) return json({ error: "refresh failed" }, 502);
-    const nt = await r.json();
-    accessToken = nt.access_token;
-    await admin.from("strava_tokens").update({
-      access_token: nt.access_token, refresh_token: nt.refresh_token,
-      expires_at: nt.expires_at, updated_at: new Date().toISOString(),
-    }).eq("user_id", userId);
-  }
 
   // Strava pagina de a 200 como máximo; 90 días pueden ser más.
   const after = Math.floor(Date.now() / 1000) - days * 86400;
@@ -124,12 +107,21 @@ Deno.serve(async (req: Request) => {
 
   // Todas las actividades a `activities`, sin filtrar por disciplina.
   let upserted = 0;
-  if (activities.length) {
-    const rows = activities.map((a) => toActivityRow(userId, a));
+  const rows = activities.map((a) => toActivityRow(userId, a));
+  if (rows.length) {
     const { error } = await admin.from("activities")
       .upsert(rows, { onConflict: "user_id,source,external_id" });
     if (error) return json({ error: "upsert failed", detail: error.message }, 500);
     upserted = rows.length;
+  }
+
+  // Matching con plan_sessions (contrato C2/C3): la sesión de esa fecha local
+  // queda 'done' con su activity_id. Las 'skipped' a mano no se tocan.
+  let matched = 0;
+  try {
+    matched = (await applyMatches(admin, userId, rows)).size;
+  } catch (e) {
+    return json({ error: "match failed", detail: String(e) }, 500);
   }
 
   // Sesiones que el usuario desmarcó a mano ("Deshacer" sobre una que registró
@@ -162,8 +154,8 @@ Deno.serve(async (req: Request) => {
     for (const r of planRows ?? []) (planByDate[r.date] ??= []).push(r.session_id);
   }
 
+  // workout_log de la PWA vieja: se sigue llenando hasta que la PWA se apague.
   const usedByDate: Record<string, Set<string>> = {};
-  let matched = 0;
   // deno-lint-ignore no-explicit-any
   const recent: any[] = [];
 
@@ -196,12 +188,11 @@ Deno.serve(async (req: Request) => {
     if (!sessionId) continue;
     usedByDate[date].add(sessionId);
 
-    const { error } = await admin.from("workout_log").upsert({
+    await admin.from("workout_log").upsert({
       user_id: userId, date, session_id: sessionId,
       status: "done", source: "strava", metrics,
       done_at: startISO,
     }, { onConflict: "user_id,date,session_id" });
-    if (!error) matched++;
   }
 
   // updated_at es "la última vez que la conexión anduvo": Ajustes lo muestra

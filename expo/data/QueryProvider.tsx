@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { QueryClient } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
+import { DATA_MODE } from './mode';
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -29,8 +30,9 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
   return (
     <PersistQueryClientProvider
       client={queryClient}
-      // `buster` invalida el cache guardado cuando cambia la forma de los datos.
-      persistOptions={{ persister, maxAge: WEEK_MS, buster: 'v1' }}
+      // `buster` invalida el cache guardado cuando cambia la forma de los datos
+      // o el modo (los datos mock nunca se mezclan con los reales).
+      persistOptions={{ persister, maxAge: WEEK_MS, buster: `v2-${DATA_MODE}` }}
     >
       {children}
     </PersistQueryClientProvider>

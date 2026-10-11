@@ -6,7 +6,8 @@
     "start": "expo start",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "test": "node --test \"data/calc/*.test.ts\""
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

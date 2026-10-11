@@ -34,3 +34,8 @@ verify_jwt = false
 # para notificarse a sí misma). La autenticación se hace adentro.
 [functions.notify]
 verify_jwt = false
+
+# La llama Strava, sin JWT. GET valida el verify_token; POST solo dispara una
+# relectura de la actividad desde Strava con el token del dueño.
+[functions.strava-webhook]
+verify_jwt = false

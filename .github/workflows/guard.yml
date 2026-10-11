@@ -1,0 +1,60 @@
+# Barrera para agentes (ChatGPT/Codex): un PR desde una rama codex/… o de
+# otro autor que toque datos, backend, workflows o la config del build, falla.
+# Las rutas prohibidas están también en AGENTS.md; si cambian, cambiar ambos.
+name: guard
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rutas-prohibidas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Revisar el diff
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          OWNER: FacuFuensa
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [[ "$HEAD_REF" != codex/* && "$AUTHOR" == "$OWNER" ]]; then
+            echo "Rama $HEAD_REF de $AUTHOR: sin restricciones."
+            exit 0
+          fi
+
+          changed=$(git diff --name-only "$BASE_SHA...$HEAD_SHA")
+          echo "Archivos del PR:"
+          echo "$changed"
+
+          bad=$(echo "$changed" | grep -E '^(expo/data/|supabase/|\.github/|expo/app\.json$|expo/eas\.json$)' || true)
+          if [[ -n "$bad" ]]; then
+            echo "::error::Este PR toca rutas prohibidas para agentes (ver AGENTS.md):"
+            echo "$bad" | while read -r f; do echo "::error file=$f::$f no se toca desde $HEAD_REF"; done
+            exit 1
+          fi
+          echo "OK: no toca rutas prohibidas."
+
+  chequeos:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: expo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: expo/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
