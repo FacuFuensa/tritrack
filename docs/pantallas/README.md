@@ -32,6 +32,28 @@ anterior mergeado.
 6. **`codex/carreras`** — [carreras.md](carreras.md) + [carrera.md](carrera.md).
 7. **`codex/limpieza`** — borrar lo viejo (ver "Qué se va").
 
+## Dependencias
+
+Todo lo que piden los planos ya está en `expo/package.json`; no se agrega
+nada. Las nativas que se sumaron para estos planos (y que por eso
+necesitaron una **build nueva** de iOS, ya hecha):
+
+- `expo-sensors` — `DeviceMotion` para `MedalTilt`. Permiso
+  `NSMotionUsageDescription` configurado en `app.json`.
+- `expo-keep-awake` — pantalla siempre prendida en el modo día de carrera.
+
+Ya estaban: `react-native-svg` (altimetría, `SplitBar`), `expo-linear-gradient`
+(brillo de la medalla), `expo-image-picker` (cambiar medalla),
+`expo-web-browser` (Strava y web de la carrera), `expo-haptics`,
+`@react-native-async-storage/async-storage` (tildes de logística) y
+`lucide-react-native` (íconos).
+
+**Ojo con las OTA:** un binario anterior a esta build no tiene el módulo
+nativo de `expo-sensors`, y `runtimeVersion` no cambió. Una OTA que importe
+`expo-sensors` rompe la app en ese binario. Antes de publicar por OTA la
+pestaña Trofeos, el teléfono tiene que tener instalada la build de TestFlight
+que trae `expo-sensors`.
+
 ## Navegación final
 
 Pestañas, en este orden: **Hoy · Semana · Carreras · Trofeos**. Ajustes no es
