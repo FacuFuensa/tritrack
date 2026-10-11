@@ -40,6 +40,12 @@
         {
           "color": "#5E9FFF"
         }
+      ],
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "TriTrack usa el movimiento del teléfono para inclinar las medallas."
+        }
       ]
     ],
     "experiments": {
