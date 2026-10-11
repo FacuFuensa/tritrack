@@ -1,3 +1,6 @@
 node_modules
 .env
 .expo
+
+# Supabase CLI: estado local, nunca se versiona
+supabase/.temp/

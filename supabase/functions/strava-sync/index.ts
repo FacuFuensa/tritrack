@@ -1,0 +1,184 @@
+// Edge Function: trae actividades recientes de Strava, las matchea con las
+// sesiones planificadas y auto-marca el workout_log.
+// verify_jwt=false a nivel gateway (CORS preflight); auth adentro con getUser.
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status, headers: { ...cors, "Content-Type": "application/json" },
+  });
+}
+
+// Disciplina de cada session_id. Es lo unico que el sync necesita saber del
+// catalogo de js/plan.js: el resto (ejercicios, cues, estructura) es del front.
+const DISC: Record<string, string> = {
+  gymA: "gym", gymB: "gym", gymAShort: "gym", gymBShort: "gym",
+  swimTech: "swim", swimIntervals: "swim", swimContinuous: "swim", swimOpenWater: "swim",
+  bikeIntervals: "bike", bikeEasy: "bike", bikeLong: "bike", bikeCommute: "bike",
+  runClub: "run", runQuality: "run", runLong: "run", runLongWalk: "run",
+  brick: "brick", raceDay: "brick",
+};
+
+// Semana tipo, SOLO para usuarios sin bloque sembrado. Espeja el fallback de
+// js/schedule.js. Cuando hay bloque activo manda plan_sessions y esto no se
+// usa, asi que ya no hay que mantenerlo en sync con cada cambio de plan.
+const FALLBACK_WEEK: string[][] = [
+  ["swimTech", "gymA"],
+  ["runClub", "bikeCommute"],
+  ["runQuality", "swimIntervals"],
+  ["gymB", "bikeIntervals"],
+  ["swimContinuous"],
+  ["bikeLong", "brick"],
+  ["runLong"],
+];
+
+const MAP: Record<string, string> = {
+  Run: "run", TrailRun: "run", VirtualRun: "run",
+  Ride: "bike", VirtualRide: "bike", GravelRide: "bike", MountainBikeRide: "bike",
+  Swim: "swim", WeightTraining: "gym", Workout: "gym", Crossfit: "gym",
+};
+
+function chicagoDate(iso: string): { date: string; dow: number } {
+  const d = new Date(iso);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit", weekday: "short",
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const dowMap: Record<string, number> = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 };
+  return { date: `${get("year")}-${get("month")}-${get("day")}`, dow: dowMap[get("weekday")] ?? 0 };
+}
+
+// Nadando el ritmo se mide cada 100 m; corriendo, cada km.
+function pace(disc: string, distanceM: number, movingS: number) {
+  if (!distanceM || !movingS) return { pace: null, pace_unit: null };
+  const per = disc === "swim" ? 100 : 1000;
+  const sec = movingS / (distanceM / per);
+  const m = Math.floor(sec / 60), s = Math.round(sec % 60);
+  return {
+    pace: `${m}:${String(s).padStart(2, "0")}`,
+    pace_unit: disc === "swim" ? "/100m" : "/km",
+  };
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+
+  const jwt = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
+  const admin = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+
+  const { data: userData, error: userErr } = await admin.auth.getUser(jwt);
+  if (userErr || !userData.user) return json({ error: "unauthorized" }, 401);
+  const userId = userData.user.id;
+
+  const { data: tokens } = await admin.from("strava_tokens").select("*").eq("user_id", userId).maybeSingle();
+  if (!tokens) return json({ error: "not connected" }, 400);
+
+  let accessToken = tokens.access_token;
+  if (tokens.expires_at <= Math.floor(Date.now() / 1000) + 60) {
+    const { data: cfg } = await admin.from("strava_config").select("*").single();
+    const r = await fetch("https://www.strava.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_id: cfg.client_id, client_secret: cfg.client_secret,
+        grant_type: "refresh_token", refresh_token: tokens.refresh_token,
+      }),
+    });
+    if (!r.ok) return json({ error: "refresh failed" }, 502);
+    const nt = await r.json();
+    accessToken = nt.access_token;
+    await admin.from("strava_tokens").update({
+      access_token: nt.access_token, refresh_token: nt.refresh_token,
+      expires_at: nt.expires_at, updated_at: new Date().toISOString(),
+    }).eq("user_id", userId);
+  }
+
+  const after = Math.floor(Date.now() / 1000) - 14 * 86400;
+  const actRes = await fetch(`https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=60`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!actRes.ok) return json({ error: "activities failed" }, 502);
+  const activities = await actRes.json();
+
+  // Sesiones que el usuario desmarcó a mano ("Deshacer" sobre una que registró
+  // Strava). Sin esto el sync las vuelve a marcar en la próxima pasada y el
+  // botón Deshacer no sirve para nada.
+  const sinceISO = new Date(after * 1000).toISOString().slice(0, 10);
+  const { data: existing } = await admin.from("workout_log")
+    .select("date, session_id, exercises")
+    .eq("user_id", userId)
+    .gte("date", sinceISO);
+  const dismissed = new Set(
+    (existing ?? [])
+      .filter((r) => r.exercises?._stravaOff)
+      .map((r) => `${r.date}:${r.session_id}`),
+  );
+
+  // El plan vive en plan_sessions. Traemos la ventana que mira el sync y
+  // armamos fecha -> [session_id]. Si el usuario no tiene bloque activo,
+  // planByDate queda vacio y se usa FALLBACK_WEEK, igual que en el front.
+  const { data: block } = await admin.from("plan_blocks")
+    .select("id").eq("user_id", userId).eq("active", true).maybeSingle();
+
+  const planByDate: Record<string, string[]> = {};
+  if (block) {
+    const { data: planRows } = await admin.from("plan_sessions")
+      .select("date, session_id, order_index")
+      .eq("user_id", userId)
+      .gte("date", sinceISO)
+      .order("order_index");
+    for (const r of planRows ?? []) (planByDate[r.date] ??= []).push(r.session_id);
+  }
+
+  const usedByDate: Record<string, Set<string>> = {};
+  let matched = 0;
+  const recent: any[] = [];
+
+  for (const a of activities) {
+    const disc = MAP[a.sport_type] || MAP[a.type];
+    const startISO = a.start_date;
+    const { date, dow } = chicagoDate(startISO);
+    const metrics = {
+      strava_id: a.id,
+      name: a.name,
+      distance_m: a.distance,
+      moving_s: a.moving_time,
+      ...(disc === "run" || disc === "swim"
+        ? pace(disc, a.distance, a.moving_time)
+        : { pace: null, pace_unit: null }),
+      avg_watts: a.average_watts ?? null,
+      avg_hr: a.average_heartrate ?? null,
+      sport: a.sport_type,
+    };
+    recent.push({ date, disc, name: a.name, distance_m: a.distance, moving_s: a.moving_time });
+
+    if (!disc) continue;
+    // Con bloque activo manda el plan sembrado; si un dia del bloque no tiene
+    // sesiones es descanso y no hay match. Sin bloque, la semana tipo.
+    const daySessions = block ? (planByDate[date] ?? []) : (FALLBACK_WEEK[dow] ?? []);
+    const candidates = daySessions.filter((id) => DISC[id] === disc);
+    if (!usedByDate[date]) usedByDate[date] = new Set();
+    const sessionId = candidates.find((id) =>
+      !usedByDate[date].has(id) && !dismissed.has(`${date}:${id}`));
+    if (!sessionId) continue;
+    usedByDate[date].add(sessionId);
+
+    const { error } = await admin.from("workout_log").upsert({
+      user_id: userId, date, session_id: sessionId,
+      status: "done", source: "strava", metrics,
+      done_at: startISO,
+    }, { onConflict: "user_id,date,session_id" });
+    if (!error) matched++;
+  }
+
+  return json({ matched, recent: recent.slice(0, 20) });
+});
