@@ -138,7 +138,9 @@ sin tarjetas, padding 24, texto alineado a la izquierda, dentro de un
 │ (o el pronóstico si existe)                    │
 │                                                │
 │ PLAN                                           │ 15/800 textSecondary
-│ Nado: salir por afuera, ritmo parejo.          │ las primeras 5 viñetas de strategy_md,
+│ Nado: salir por afuera, ritmo parejo.          │ las viñetas de "## Modo día de carrera"
+│                                                │   de strategy_md (máx. 5); si no está esa
+│                                                │   sección, las primeras 5 viñetas,
 │ Bici: cuestas sentado, sin pasar 165.          │   22/700, separadas 16
 │ Trote: primeros 2 km contenidos.               │
 │                                                │
