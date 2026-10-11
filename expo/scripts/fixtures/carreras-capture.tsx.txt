@@ -1,0 +1,36 @@
+// Temporary visual verification harness. Removed before commit.
+import React, { useLayoutEffect, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import { queryClient } from '@/data/QueryProvider';
+import { buildScenario } from '@/data/mocks/scenario';
+import { todayLocal } from '@/data/calc/dates';
+import { api } from '@/data/api';
+import { DATA_MODE } from '@/data/mode';
+import Season from './(tabs)/carreras/index';
+import Detail from './carrera/[id]';
+
+export default function Capture() {
+  if (DATA_MODE !== 'mock') throw new Error('Esta fixture requiere EXPO_PUBLIC_DATA_MODE=mock');
+  const params = useLocalSearchParams<{ state?: string; screen?: string; id?: string; modo?: string }>();
+  const [ready, setReady] = useState(false);
+  useLayoutEffect(() => {
+    const key = ['races'];
+    queryClient.removeQueries({ queryKey: key });
+    queryClient.setQueryDefaults(key, { staleTime: Infinity, retry: false, retryOnMount: false, refetchOnMount: false, refetchOnWindowFocus: false });
+    const races = buildScenario(todayLocal()).races;
+    if (params.state === 'register-error') api.updateRace = async () => { throw new Error('fixture'); };
+    if (params.state === 'today') {
+      races.find(r => r.id === 'race-next-oly')!.date = todayLocal();
+    }
+    queryClient.setQueryData(key, params.state === 'empty' ? [] : races);
+    const query = queryClient.getQueryCache().find({ queryKey: key })!;
+    if (params.state === 'error') query.setState({ data: undefined, status: 'error', error: new Error('fixture'), fetchStatus: 'idle' });
+    if (params.state === 'loading') {
+      query.setState({ data: undefined, status: 'pending', error: null, fetchStatus: 'idle' });
+      void query.fetch({ queryKey: key, queryFn: () => new Promise(() => {}), retry: false });
+    }
+    if (params.state === 'offline') query.setState({ status: 'error', error: new Error('fixture'), fetchStatus: 'idle' });
+    setReady(true);
+  }, [params.state]);
+  return ready ? params.screen === 'detail' ? <Detail /> : <Season /> : null;
+}
