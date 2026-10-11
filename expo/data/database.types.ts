@@ -68,6 +68,56 @@ export type Database = {
         }
         Relationships: []
       }
+      checkins: {
+        Row: {
+          activity_id: string | null
+          created_at: string
+          date: string
+          energia: number | null
+          id: string
+          molestia: Json | null
+          nota: string | null
+          nutricion: Json | null
+          rpe: number | null
+          session_id: string | null
+          user_id: string
+        }
+        Insert: {
+          activity_id?: string | null
+          created_at?: string
+          date: string
+          energia?: number | null
+          id?: string
+          molestia?: Json | null
+          nota?: string | null
+          nutricion?: Json | null
+          rpe?: number | null
+          session_id?: string | null
+          user_id: string
+        }
+        Update: {
+          activity_id?: string | null
+          created_at?: string
+          date?: string
+          energia?: number | null
+          id?: string
+          molestia?: Json | null
+          nota?: string | null
+          nutricion?: Json | null
+          rpe?: number | null
+          session_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkins_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "plan_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       oauth_states: {
         Row: {
           created_at: string
@@ -98,6 +148,7 @@ export type Database = {
           goal: string | null
           id: string
           name: string
+          race_id: string | null
           start_monday: string
           user_id: string
         }
@@ -109,6 +160,7 @@ export type Database = {
           goal?: string | null
           id?: string
           name: string
+          race_id?: string | null
           start_monday: string
           user_id: string
         }
@@ -120,47 +172,71 @@ export type Database = {
           goal?: string | null
           id?: string
           name?: string
+          race_id?: string | null
           start_monday?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "plan_blocks_race_id_fkey"
+            columns: ["race_id"]
+            isOneToOne: false
+            referencedRelation: "races"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       plan_sessions: {
         Row: {
+          activity_id: string | null
           date: string
+          discipline: string | null
           id: string
           optional: boolean
           order_index: number
           origin: string
           overrides: Json | null
+          prescription: Json
           session_id: string
           slot: string
+          status: string
+          title: string | null
           updated_at: string
           user_id: string
           week_id: string
         }
         Insert: {
+          activity_id?: string | null
           date: string
+          discipline?: string | null
           id?: string
           optional?: boolean
           order_index?: number
           origin?: string
           overrides?: Json | null
+          prescription?: Json
           session_id: string
           slot?: string
+          status?: string
+          title?: string | null
           updated_at?: string
           user_id: string
           week_id: string
         }
         Update: {
+          activity_id?: string | null
           date?: string
+          discipline?: string | null
           id?: string
           optional?: boolean
           order_index?: number
           origin?: string
           overrides?: Json | null
+          prescription?: Json
           session_id?: string
           slot?: string
+          status?: string
+          title?: string | null
           updated_at?: string
           user_id?: string
           week_id?: string
@@ -178,12 +254,15 @@ export type Database = {
       plan_weeks: {
         Row: {
           block_id: string
+          briefing_md: string | null
           coach_note: string | null
+          feedback: string | null
           focus: string | null
           generated_by: string
           id: string
           kind: string
           monday: string
+          status: string
           targets: Json
           updated_at: string
           user_id: string
@@ -191,12 +270,15 @@ export type Database = {
         }
         Insert: {
           block_id: string
+          briefing_md?: string | null
           coach_note?: string | null
+          feedback?: string | null
           focus?: string | null
           generated_by?: string
           id?: string
           kind: string
           monday: string
+          status?: string
           targets?: Json
           updated_at?: string
           user_id: string
@@ -204,12 +286,15 @@ export type Database = {
         }
         Update: {
           block_id?: string
+          briefing_md?: string | null
           coach_note?: string | null
+          feedback?: string | null
           focus?: string | null
           generated_by?: string
           id?: string
           kind?: string
           monday?: string
+          status?: string
           targets?: Json
           updated_at?: string
           user_id?: string
@@ -287,6 +372,66 @@ export type Database = {
           expo_token?: string
           platform?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      races: {
+        Row: {
+          activity_ids: string[]
+          climate: Json
+          created_at: string
+          date: string
+          id: string
+          kind: string
+          location: string | null
+          logistics: Json
+          medal_path: string | null
+          name: string
+          priority: string | null
+          profile: Json
+          result: Json | null
+          start_local: string | null
+          status: string
+          strategy_md: string | null
+          user_id: string
+        }
+        Insert: {
+          activity_ids?: string[]
+          climate?: Json
+          created_at?: string
+          date: string
+          id?: string
+          kind: string
+          location?: string | null
+          logistics?: Json
+          medal_path?: string | null
+          name: string
+          priority?: string | null
+          profile?: Json
+          result?: Json | null
+          start_local?: string | null
+          status?: string
+          strategy_md?: string | null
+          user_id: string
+        }
+        Update: {
+          activity_ids?: string[]
+          climate?: Json
+          created_at?: string
+          date?: string
+          id?: string
+          kind?: string
+          location?: string | null
+          logistics?: Json
+          medal_path?: string | null
+          name?: string
+          priority?: string | null
+          profile?: Json
+          result?: Json | null
+          start_local?: string | null
+          status?: string
+          strategy_md?: string | null
           user_id?: string
         }
         Relationships: []
