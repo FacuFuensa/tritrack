@@ -1,54 +1,17 @@
-import { Tabs } from 'expo-router';
-import { Activity, CalendarDays, User, Settings } from 'lucide-react-native';
 import React from 'react';
+import { Tabs } from 'expo-router';
+import { Sun, CalendarDays, Flag, Trophy } from 'lucide-react-native';
 import Colors from '@/constants/colors';
-
+import { Platform } from 'react-native';
 export default function TabLayout() {
-  return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: Colors.accent,
-        tabBarInactiveTintColor: Colors.textTertiary,
-        tabBarStyle: {
-          backgroundColor: Colors.tabBar,
-          borderTopColor: Colors.tabBarBorder,
-          borderTopWidth: 1,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600' as const,
-        },
-      }}
-    >
-      <Tabs.Screen
-        name="(home)"
-        options={{
-          title: 'Train',
-          tabBarIcon: ({ color, size }) => <Activity size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="history"
-        options={{
-          title: 'History',
-          tabBarIcon: ({ color, size }) => <CalendarDays size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
-        }}
-      />
-    </Tabs>
-  );
+  return <Tabs initialRouteName="hoy/index" screenOptions={{ headerShown: false, tabBarActiveTintColor: Colors.accent, tabBarInactiveTintColor: Colors.textTertiary, tabBarStyle: { backgroundColor: Colors.tabBar, borderTopColor: Colors.tabBarBorder, borderTopWidth: 1, ...(Platform.OS === 'web' ? { height: 64, paddingBottom: 8 } : {}) }, tabBarLabelStyle: { fontSize: 11, fontWeight: '600' } }}>
+    <Tabs.Screen name="hoy/index" options={{ title: 'Hoy', tabBarIcon: ({ color, size }) => <Sun color={color} size={size} /> }} />
+    <Tabs.Screen name="semana/index" options={{ title: 'Semana', tabBarIcon: ({ color, size }) => <CalendarDays color={color} size={size} /> }} />
+    <Tabs.Screen name="carreras/index" options={{ title: 'Carreras', tabBarIcon: ({ color, size }) => <Flag color={color} size={size} /> }} />
+    <Tabs.Screen name="trofeos/index" options={{ title: 'Trofeos', tabBarIcon: ({ color, size }) => <Trophy color={color} size={size} /> }} />
+    <Tabs.Screen name="(home)" options={{ href: null }} />
+    <Tabs.Screen name="history" options={{ href: null }} />
+    <Tabs.Screen name="profile" options={{ href: null }} />
+    <Tabs.Screen name="settings" options={{ href: null }} />
+  </Tabs>;
 }

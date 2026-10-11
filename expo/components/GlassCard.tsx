@@ -10,8 +10,8 @@ interface GlassCardProps {
 
 export default React.memo(function GlassCard({ children, style, accentColor }: GlassCardProps) {
   return (
-    <View style={[styles.card, accentColor ? { borderColor: accentColor + '30' } : null, style]}>
-      {accentColor ? <View style={[styles.glow, { backgroundColor: accentColor + '08' }]} /> : null}
+    <View style={[styles.card, accentColor ? { borderColor: accentColor.startsWith('#') ? accentColor + '30' : accentColor } : null, style]}>
+      {accentColor ? <View style={[styles.glow, { backgroundColor: accentColor.startsWith('#') ? accentColor + '08' : Colors.backgroundCard }]} /> : null}
       {children}
     </View>
   );
