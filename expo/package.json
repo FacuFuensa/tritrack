@@ -1,11 +1,11 @@
 {
-  "name": "expo-app",
+  "name": "tritrack",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
-    "start": "bunx rork start -p 42yvg9n6aktv4htzashvv",
-    "start-web": "bunx rork start -p 42yvg9n6aktv4htzashvv --web",
-    "start-web-dev": "DEBUG=expo* bunx rork start -p 42yvg9n6aktv4htzashvv --web",
+    "start": "expo start",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
     "lint": "expo lint"
   },
   "dependencies": {
