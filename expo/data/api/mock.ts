@@ -7,7 +7,7 @@ import type { DataApi, DateRange } from './types';
 
 const sc = buildScenario(todayLocal());
 const inRange = (d: string, r: DateRange) => d >= r.from && d <= r.to;
-const delay = <T>(v: T) => new Promise<T>((res) => setTimeout(() => res(structuredClone(v)), 150));
+const delay = <T>(v: T) => new Promise<T>((res) => setTimeout(() => res(JSON.parse(JSON.stringify(v)) as T), 150));
 
 export const mockApi: DataApi = {
   block: () => delay(sc.block),
