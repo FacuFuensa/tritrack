@@ -26,7 +26,7 @@ import {
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/providers/AuthProvider';
-import { isSupabaseConfigured } from '@/utils/supabase';
+import { isSupabaseConfigured } from '@/data/supabase';
 
 type AuthMode = 'sign_in' | 'sign_up' | 'forgot_password';
 

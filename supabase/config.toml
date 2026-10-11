@@ -29,3 +29,8 @@ verify_jwt = true
 # /disconnect validan el JWT adentro.
 [functions.oauth]
 verify_jwt = false
+
+# La llaman pg_net (sin JWT, con x-notify-secret) y la app (con JWT, solo
+# para notificarse a sí misma). La autenticación se hace adentro.
+[functions.notify]
+verify_jwt = false

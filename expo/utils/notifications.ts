@@ -1,8 +1,8 @@
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
+import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const NOTIFICATION_PERMISSION_KEY = 'tritrack_notification_permission_asked';
+import { supabase } from '@/data/supabase';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -14,33 +14,35 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export async function requestNotificationPermission(): Promise<boolean> {
-  if (Platform.OS === 'web') {
-    console.log('[Notifications] Web platform - skipping native permission');
-    return false;
-  }
+// Pide permiso (una vez: iOS no vuelve a preguntar), saca el Expo push token
+// del proyecto EAS y lo guarda en push_tokens. Se llama después del login,
+// nunca al abrir la app por primera vez. Devuelve el token o null.
+export async function registerPushToken(userId: string): Promise<string | null> {
+  if (Platform.OS === 'web') return null;
 
   try {
-    const alreadyAsked = await AsyncStorage.getItem(NOTIFICATION_PERMISSION_KEY);
-    if (alreadyAsked === 'true') {
-      const { status } = await Notifications.getPermissionsAsync();
-      console.log('[Notifications] Already asked, current status:', status);
-      return status === 'granted';
+    let { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') {
+      ({ status } = await Notifications.requestPermissionsAsync());
+    }
+    if (status !== 'granted') {
+      console.log('[Notifications] Permiso denegado');
+      return null;
     }
 
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    if (existingStatus === 'granted') {
-      await AsyncStorage.setItem(NOTIFICATION_PERMISSION_KEY, 'true');
-      return true;
-    }
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
+    const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
 
-    const { status } = await Notifications.requestPermissionsAsync();
-    await AsyncStorage.setItem(NOTIFICATION_PERMISSION_KEY, 'true');
-    console.log('[Notifications] Permission result:', status);
-    return status === 'granted';
+    const { error } = await supabase.from('push_tokens').upsert(
+      { user_id: userId, expo_token: token, platform: Platform.OS, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id,expo_token' },
+    );
+    if (error) console.warn('[Notifications] No se pudo guardar el token:', error.message);
+    return token;
   } catch (err) {
-    console.error('[Notifications] Permission request error:', err);
-    return false;
+    // En el simulador o sin la clave push de Apple no hay token: la app sigue.
+    console.warn('[Notifications] Sin push token:', err);
+    return null;
   }
 }
 
@@ -54,38 +56,14 @@ export async function getNotificationPermissionStatus(): Promise<string> {
   }
 }
 
-export async function sendActivitySyncNotification(
-  discipline: string,
-  count: number,
-  source: string
-): Promise<void> {
-  if (Platform.OS === 'web') return;
-  try {
-    const { status } = await Notifications.getPermissionsAsync();
-    if (status !== 'granted') return;
-
-    const disciplineLabel = discipline.charAt(0).toUpperCase() + discipline.slice(1);
-    const body = count === 1
-      ? `New ${disciplineLabel.toLowerCase()} synced from ${source}`
-      : `${count} new activities synced from ${source}`;
-
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: 'Activity Synced',
-        body,
-        data: { type: 'activity_sync', screen: '/(tabs)/(home)' },
-      },
-      trigger: null,
-    });
-    console.log('[Notifications] Activity sync notification sent:', count, 'from', source);
-  } catch (err) {
-    console.error('[Notifications] Failed to send activity sync notification:', err);
-  }
-}
-
-export function addNotificationResponseListener(
-  callback: (response: Notifications.NotificationResponse) => void
-) {
+// Las notificaciones del servidor traen data.url con un deep link
+// tritrack://... (contrato C1). Tocar la notificación lo abre.
+export function addNotificationResponseListener() {
   if (Platform.OS === 'web') return { remove: () => {} };
-  return Notifications.addNotificationResponseReceivedListener(callback);
+  return Notifications.addNotificationResponseReceivedListener((response) => {
+    const url = response.notification.request.content.data?.url;
+    if (typeof url === 'string' && url.startsWith('tritrack://')) {
+      Linking.openURL(url).catch(() => {});
+    }
+  });
 }

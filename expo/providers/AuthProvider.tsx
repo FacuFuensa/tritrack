@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
-import { supabase, isSupabaseConfigured } from '@/utils/supabase';
+import { supabase, isSupabaseConfigured } from '@/data/supabase';
 import { UserAccount, IntegrationConfig, IntegrationType, WhoopData, WhoopDailyMetrics, WhoopSyncState, ImportedWorkout, SourcePreferences } from '@/constants/types';
 import type { Session } from '@supabase/supabase-js';
 
