@@ -33,7 +33,7 @@ const STRAVA_CLIENT_SECRET = process.env.EXPO_PUBLIC_STRAVA_CLIENT_SECRET ?? '';
 
 function getWhoopRedirectUri(): string {
   const uri = makeRedirectUri({
-    scheme: 'rork-app',
+    scheme: 'tritrack',
     path: 'oauth/whoop',
   });
   console.log('[Integrations] WHOOP Redirect URI:', uri);
@@ -42,7 +42,7 @@ function getWhoopRedirectUri(): string {
 
 function getStravaRedirectUri(): string {
   const uri = makeRedirectUri({
-    scheme: 'rork-app',
+    scheme: 'tritrack',
     path: 'oauth/strava',
   });
   console.log('[Integrations] Strava Redirect URI:', uri);
