@@ -109,7 +109,7 @@ Enlace a Strava: `https://www.strava.com/activities/<id>` con
 
 | Toque / gesto | Hace |
 |---|---|
-| Inclinar el teléfono | La medalla rota (±18°) y el brillo se desplaza |
+| Inclinar el teléfono | La medalla rota (±30°, relativo a cómo lo sostenés) y el brillo se desplaza |
 | Volver | `router.back()` |
 | Ver en Strava | Abre la actividad en el navegador |
 | Fila de otra edición | `router.replace('/trofeo/' + otroId)` |

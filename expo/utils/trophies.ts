@@ -63,3 +63,20 @@ export function editionDifference(current: RaceResult | null, other: RaceResult 
   if (current?.total_s == null || other?.total_s == null || current.cancelled?.length || other.cancelled?.length) return null;
   return other.total_s - current.total_s;
 }
+
+// Inclinación de la medalla: relativa a cómo se sostiene el teléfono (la primera
+// lectura es el cero), amplificada y con tope. La base sigue despacio a la
+// postura, así que si cambiás cómo lo tenés, la medalla vuelve a centrarse.
+export const TILT_MAX = 30;
+export const TILT_GAIN = 2.5;
+const TILT_RECENTER = 0.02;
+export type TiltBase = { beta: number; gamma: number };
+const clampTilt = (n: number) => Math.max(-TILT_MAX, Math.min(TILT_MAX, n));
+export function tiltStep(base: TiltBase | null, beta: number, gamma: number): { base: TiltBase; x: number; y: number } {
+  if (!base) return { base: { beta, gamma }, x: 0, y: 0 };
+  return {
+    base: { beta: base.beta + (beta - base.beta) * TILT_RECENTER, gamma: base.gamma + (gamma - base.gamma) * TILT_RECENTER },
+    x: clampTilt((beta - base.beta) * TILT_GAIN),
+    y: clampTilt((gamma - base.gamma) * TILT_GAIN),
+  };
+}
