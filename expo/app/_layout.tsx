@@ -1,15 +1,15 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { View, ActivityIndicator, StyleSheet, Platform } from "react-native";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { TrainingProvider, useTraining } from "@/providers/TrainingProvider";
 import { AuthProvider, useAuth } from "@/providers/AuthProvider";
-import { requestNotificationPermission, addNotificationResponseListener } from "@/utils/notifications";
+import { registerPushToken, addNotificationResponseListener } from "@/utils/notifications";
 import Colors from "@/constants/colors";
-import { isSupabaseConfigured } from "@/utils/supabase";
+import { isSupabaseConfigured } from "@/data/supabase";
+import { QueryProvider } from "@/data/QueryProvider";
 
 // Sin EXPO_PUBLIC_SUPABASE_URL / ANON_KEY la app abre directo, sin login, y
 // guarda todo en el teléfono (almacenamiento local de TrainingProvider).
@@ -17,14 +17,12 @@ const localOnly = !isSupabaseConfigured();
 
 SplashScreen.preventAutoHideAsync();
 
-const queryClient = new QueryClient();
-
 function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false, gestureEnabled: false }} />
-      <Stack.Screen name="integrations" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="ajustes" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="account" options={{ headerShown: false, presentation: 'modal' }} />
     </Stack>
   );
@@ -33,9 +31,9 @@ function RootLayoutNav() {
 function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const segments = useSegments();
-  const { isSignedIn, isLoading: authLoading } = useAuth();
+  const { isSignedIn, isLoading: authLoading, account } = useAuth();
   const { isLoading: trainingLoading } = useTraining();
-  const notificationPermissionRequested = useRef(false);
+  const pushRegisteredFor = useRef<string | null>(null);
 
   useEffect(() => {
     if (authLoading || trainingLoading) return;
@@ -56,38 +54,20 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     }
   }, [isSignedIn, authLoading, trainingLoading, segments, router]);
 
+  // Permiso de notificaciones y push token: recién con sesión iniciada (el
+  // token se guarda a nombre del usuario). Sin backend no hay a quién avisar.
+  const userId = account?.id ?? null;
   useEffect(() => {
-    if ((!isSignedIn && !localOnly) || notificationPermissionRequested.current) return;
-    notificationPermissionRequested.current = true;
-
-    const timer = setTimeout(() => {
-      console.log('[AuthGate] Requesting notification permission...');
-      requestNotificationPermission().then((granted) => {
-        console.log('[AuthGate] Notification permission:', granted ? 'granted' : 'denied');
-      });
-    }, 1500);
-
+    if (!isSignedIn || !userId || pushRegisteredFor.current === userId) return;
+    pushRegisteredFor.current = userId;
+    const timer = setTimeout(() => { void registerPushToken(userId); }, 1500);
     return () => clearTimeout(timer);
-  }, [isSignedIn]);
+  }, [isSignedIn, userId]);
 
   useEffect(() => {
-    if (Platform.OS === 'web') return;
-
-    const subscription = addNotificationResponseListener((response) => {
-      const data = response.notification.request.content.data;
-      console.log('[AuthGate] Notification tapped, data:', data);
-
-      if (data?.type === 'activity_sync' && data?.screen) {
-        router.push(data.screen as never);
-      }
-    });
-
-    return () => {
-      if (subscription && typeof subscription.remove === 'function') {
-        subscription.remove();
-      }
-    };
-  }, [router]);
+    const subscription = addNotificationResponseListener();
+    return () => subscription.remove();
+  }, []);
 
   if (authLoading || trainingLoading) {
     return (
@@ -106,7 +86,7 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <QueryProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <AuthProvider>
           <TrainingProvider>
@@ -117,7 +97,7 @@ export default function RootLayout() {
           </TrainingProvider>
         </AuthProvider>
       </GestureHandlerRootView>
-    </QueryClientProvider>
+    </QueryProvider>
   );
 }
 

@@ -1,6 +1,9 @@
+// Cliente único de Supabase. La sesión se guarda en AsyncStorage: se inicia
+// sesión una vez y queda. Solo lleva la URL y la anon key (públicas).
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
+import type { Database } from './database.types';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -89,7 +92,7 @@ const storageAdapter = {
 const safeUrl = supabaseUrl || 'https://placeholder.supabase.co';
 const safeKey = supabaseAnonKey || 'placeholder-key';
 
-export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
+export const supabase: SupabaseClient<Database> = createClient<Database>(safeUrl, safeKey, {
   global: {
     fetch: supabaseFetch,
   },
@@ -100,6 +103,15 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
     detectSessionInUrl: Platform.OS === 'web',
   },
 });
+
+// En segundo plano iOS congela los timers: el refresco del JWT se pausa y se
+// retoma al volver, para no arrancar con un token vencido.
+if (hasCredentials && Platform.OS !== 'web') {
+  AppState.addEventListener('change', (state) => {
+    if (state === 'active') supabase.auth.startAutoRefresh();
+    else supabase.auth.stopAutoRefresh();
+  });
+}
 
 export function isSupabaseConfigured(): boolean {
   return hasCredentials;

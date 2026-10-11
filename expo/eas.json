@@ -7,7 +7,11 @@
     "production": {
       "autoIncrement": true,
       "environment": "production",
-      "channel": "production"
+      "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://ufxkutmjhivtiqewitrt.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmeGt1dG1qaGl2dGlxZXdpdHJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExODYwMDAsImV4cCI6MjA5Njc2MjAwMH0.BVpQ3xzMY2XZA5-TDfge1e9H81lJMmClzDLfvrr2AtA"
+      }
     }
   },
   "submit": {

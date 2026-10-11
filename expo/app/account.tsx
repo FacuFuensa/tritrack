@@ -35,7 +35,7 @@ import {
 import Colors from '@/constants/colors';
 import { useAuth } from '@/providers/AuthProvider';
 import GlassCard from '@/components/GlassCard';
-import { isSupabaseConfigured } from '@/utils/supabase';
+import { isSupabaseConfigured } from '@/data/supabase';
 
 type AuthMode = 'sign_in' | 'sign_up' | 'forgot_password';
 

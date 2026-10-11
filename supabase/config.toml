@@ -1,0 +1,36 @@
+project_id = "ufxkutmjhivtiqewitrt"
+
+# verify_jwt vive acá y no en un flag suelto del deploy: `functions deploy` sin
+# --no-verify-jwt lo vuelve a poner en true y rompe el preflight CORS del
+# navegador (que viaja sin Authorization). Ya pasó una vez — commit 530561e.
+
+# Las llama el navegador desde la app: el preflight OPTIONS no lleva token, así
+# que el gateway no puede exigir JWT. La autenticación se hace adentro de cada
+# función con admin.auth.getUser(jwt).
+[functions.strava-auth]
+verify_jwt = false
+
+[functions.strava-sync]
+verify_jwt = false
+
+[functions.whoop-auth]
+verify_jwt = false
+
+[functions.whoop-sync]
+verify_jwt = false
+
+# Esta no la llama el navegador sino el scheduler, con Authorization. Además
+# valida su propia clave compartida (x-tc-key). Se queda con el JWT del gateway.
+[functions.send-reminders]
+verify_jwt = true
+
+# OAuth de Strava y Whoop hecho en el servidor. El callback llega desde el
+# navegador del proveedor, sin sesión: el usuario viaja en `state`. /start y
+# /disconnect validan el JWT adentro.
+[functions.oauth]
+verify_jwt = false
+
+# La llaman pg_net (sin JWT, con x-notify-secret) y la app (con JWT, solo
+# para notificarse a sí misma). La autenticación se hace adentro.
+[functions.notify]
+verify_jwt = false
