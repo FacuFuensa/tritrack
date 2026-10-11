@@ -1,4 +1,7 @@
 export default {
+  medalGold: '#F5D06F',
+  medalGoldDark: '#B8860B',
+  transparent: 'transparent',
   background: '#080C1A',
   overlay: 'rgba(0,0,0,0.6)',
   backgroundLight: '#0F1528',

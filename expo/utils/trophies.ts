@@ -1,0 +1,65 @@
+import type { RaceResult } from '../data/types';
+import { segmentSeconds, segmentState } from '../data/calc/races.ts';
+
+export const splitKeys = ['swim', 't1', 'bike', 't2', 'run'] as const;
+export type SplitKey = typeof splitKeys[number];
+export const splitNames: Record<SplitKey, string> = { swim: 'Nado', t1: 'T1', bike: 'Bici', t2: 'T2', run: 'Trote' };
+export const suspendedNames = { swim: 'Nado suspendido', bike: 'Bici suspendida', run: 'Trote suspendido' };
+export type RankKey = 'rank_overall' | 'field_overall' | 'rank_division' | 'field_division';
+export interface ManualFields {
+  total: string[];
+  splits: Partial<Record<SplitKey, string>>;
+  cancelled: string[];
+  ranks: Partial<Record<RankKey, string>>;
+  division: string;
+}
+
+export function parseTime(parts: string[]): number | null | 'invalid' {
+  if (parts.every(p => !p.trim())) return null;
+  if (parts.length !== 3 || parts.some(p => p !== '' && !/^\d+$/.test(p))) return 'invalid';
+  const [h, m, s] = parts.map(p => Number(p || 0));
+  const total = h * 3600 + m * 60 + s;
+  return m > 59 || s > 59 || total <= 0 || !Number.isSafeInteger(total) ? 'invalid' : total;
+}
+
+export function buildManualResult(fields: ManualFields): RaceResult | null {
+  const total = parseTime(fields.total);
+  if (total === 'invalid') return null;
+  const result: RaceResult = { total_s: total, splits: {}, source: 'manual' };
+  for (const key of splitKeys) {
+    if (fields.cancelled.includes(key)) continue;
+    const raw = fields.splits[key]?.trim();
+    if (!raw) continue;
+    const seconds = parseTime(raw.split(':'));
+    if (seconds === 'invalid' || seconds === null) return null;
+    result.splits[`${key}_s`] = seconds;
+  }
+  const cancelled = fields.cancelled.filter((k): k is 'swim' | 'bike' | 'run' => k === 'swim' || k === 'bike' || k === 'run');
+  if (cancelled.length) result.cancelled = cancelled;
+  for (const key of Object.keys(fields.ranks) as RankKey[]) {
+    const raw = fields.ranks[key]?.trim();
+    if (!raw) continue;
+    const n = Number(raw);
+    if (!/^\d+$/.test(raw) || !Number.isSafeInteger(n) || n <= 0) return null;
+    result[key] = n;
+  }
+  if (fields.division.trim()) result.division = fields.division.trim();
+  return result;
+}
+
+export function splitLayout(result: RaceResult) {
+  const parts = splitKeys.map(key => {
+    const discipline = key === 'swim' || key === 'bike' || key === 'run';
+    const seconds = discipline ? segmentSeconds(result, key) : (result.splits[`${key}_s`] ?? null);
+    const state = discipline ? segmentState(result, key) : seconds != null && seconds > 0 ? 'ok' : 'sin_dato';
+    return { key, state, seconds: state === 'ok' ? seconds : null };
+  });
+  const available = 100 - parts.filter(p => p.state === 'suspendido').length * 12;
+  const sum = parts.reduce((n, p) => n + (p.seconds ?? 0), 0);
+  return parts.map(p => ({ ...p, width: p.state === 'suspendido' ? 12 : sum ? (p.seconds ?? 0) / sum * available : 0 }));
+}
+
+export function editionDifference(current: RaceResult | null, other: RaceResult | null): number | null {
+  if (current?.total_s == null || other?.total_s == null || current.cancelled?.length || other.cancelled?.length) return null;
+  return other.total_s - current.total_s;
+}
