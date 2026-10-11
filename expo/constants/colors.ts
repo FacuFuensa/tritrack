@@ -35,8 +35,6 @@ export default {
   gradientMid: '#0F1528',
   gradientEnd: '#141D35',
 
-  healthkit: '#FF3B30',
-  healthkitDark: 'rgba(255, 59, 48, 0.15)',
   strava: '#FC4C02',
   stravaDark: 'rgba(252, 76, 2, 0.15)',
   whoop: '#00D1FF',
@@ -45,6 +43,4 @@ export default {
   googleDark: 'rgba(66, 133, 244, 0.15)',
   social: '#A78BFA',
   socialDark: 'rgba(167, 139, 250, 0.15)',
-  garmin: '#11BFAE',
-  garminDark: 'rgba(17, 191, 174, 0.15)',
 };

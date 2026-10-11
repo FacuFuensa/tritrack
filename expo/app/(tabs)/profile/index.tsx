@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,45 +13,25 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
-import { Flame, Trophy, Timer, TrendingUp, Camera, Pencil, Heart, Users, AtSign, ChevronRight, Zap } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import { Flame, Trophy, Timer, TrendingUp, Camera, Pencil, Heart, Zap } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useTraining } from '@/providers/TrainingProvider';
 import { calculateAllTimeStats } from '@/utils/calculations';
 import { formatTime, daysUntil } from '@/utils/dateUtils';
 import GlassCard from '@/components/GlassCard';
-import { useSocial } from '@/providers/SocialProvider';
 import { useAuth } from '@/providers/AuthProvider';
 import { formatSleepDuration, hasRealMetrics } from '@/utils/whoopMapper';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const { profile, updateProfile, dailyLogs, supplements, recoveryOptions, workoutConfigs } = useTraining();
-  const { nameTag, createNameTag, updateNameTag, syncStats, supabaseReady } = useSocial();
   const { whoopData, isSignedIn, account, getLatestWhoopMetrics } = useAuth();
   const latestWhoopMetrics = useMemo(() => getLatestWhoopMetrics(), [getLatestWhoopMetrics]);
   const showWhoopData = useMemo(() => hasRealMetrics(latestWhoopMetrics), [latestWhoopMetrics]);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(profile.name);
-  const [isEditingTag, setIsEditingTag] = useState(false);
-  const [editTag, setEditTag] = useState(nameTag?.tag ?? '');
 
   const stats = useMemo(() => calculateAllTimeStats(dailyLogs), [dailyLogs]);
-
-  useEffect(() => {
-    if (supabaseReady && stats) {
-      syncStats({
-        totalWorkouts: stats.totalSessions,
-        bestRunDistance: stats.runLongest,
-        longestRide: stats.bikeLongest,
-        swimTotal: stats.swimTotal,
-        currentStreak: stats.currentStreak,
-        totalTrainingTime: stats.totalTrainingTime,
-      });
-      console.log('[Profile] Auto-synced stats to Supabase');
-    }
-  }, [supabaseReady, stats.totalSessions, stats.currentStreak, stats.totalTrainingTime]);
 
   const isConfigVisible = useCallback((configId: string): boolean => {
     const config = workoutConfigs.find((c) => c.id === configId);
@@ -200,65 +180,6 @@ export default function ProfileScreen() {
             {profile.eventName}{profile.eventDate ? ` · ${daysUntil(profile.eventDate)} days away` : ''}
           </Text>
         </View>
-
-        {nameTag ? (
-          <View style={styles.nameTagRow}>
-            <AtSign size={14} color={Colors.social} />
-            <Text style={styles.nameTagText}>{nameTag.tag}</Text>
-            {nameTag.changesLeft > 0 ? (
-              <TouchableOpacity
-                onPress={() => {
-                  setEditTag(nameTag.tag);
-                  setIsEditingTag(true);
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                }}
-                activeOpacity={0.7}
-              >
-                <Pencil size={12} color={Colors.textTertiary} />
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={styles.createTagBtn}
-            onPress={() => setIsEditingTag(true)}
-            activeOpacity={0.7}
-          >
-            <AtSign size={14} color={Colors.social} />
-            <Text style={styles.createTagText}>Create Name Tag</Text>
-          </TouchableOpacity>
-        )}
-
-        {isEditingTag ? (
-          <View style={styles.tagEditContainer}>
-            <View style={styles.tagEditRow}>
-              <AtSign size={16} color={Colors.social} />
-              <TextInput
-                style={styles.tagInput}
-                value={editTag}
-                onChangeText={(t) => setEditTag(t.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20))}
-                placeholder="YourNameTag"
-                placeholderTextColor={Colors.textTertiary}
-                autoFocus
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="done"
-                onSubmitEditing={() => {
-                  if (editTag.trim().length >= 3) {
-                    if (nameTag) {
-                      updateNameTag(editTag.trim());
-                    } else {
-                      createNameTag(editTag.trim());
-                    }
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  }
-                  setIsEditingTag(false);
-                }}
-              />
-            </View>
-            <Text style={styles.tagHint}>3-20 chars, letters, numbers, underscore</Text>
-          </View>
-        ) : null}
 
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
@@ -438,23 +359,6 @@ export default function ProfileScreen() {
             </GlassCard>
           </>
         ) : null}
-
-        <Text style={styles.sectionTitle}>SOCIAL & CONNECTIONS</Text>
-
-        <TouchableOpacity
-          style={styles.socialLink}
-          onPress={() => router.push('/friends' as never)}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.socialLinkIcon, { backgroundColor: Colors.socialDark }]}>
-            <Users size={18} color={Colors.social} />
-          </View>
-          <View style={styles.socialLinkText}>
-            <Text style={styles.socialLinkTitle}>Friends Network</Text>
-            <Text style={styles.socialLinkSubtitle}>View and manage friends</Text>
-          </View>
-          <ChevronRight size={16} color={Colors.textTertiary} />
-        </TouchableOpacity>
 
         {showWhoopData && latestWhoopMetrics ? (
           <>
@@ -739,96 +643,6 @@ const styles = StyleSheet.create({
     height: 5,
     backgroundColor: Colors.recovery,
     borderRadius: 3,
-  },
-  nameTagRow: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 6,
-    justifyContent: 'center' as const,
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  nameTagText: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: Colors.social,
-  },
-  createTagBtn: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 6,
-    justifyContent: 'center' as const,
-    marginTop: 6,
-    marginBottom: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 10,
-    backgroundColor: Colors.socialDark,
-    alignSelf: 'center' as const,
-  },
-  createTagText: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: Colors.social,
-  },
-  tagEditContainer: {
-    alignItems: 'center' as const,
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  tagEditRow: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 6,
-    backgroundColor: Colors.inputBackground,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.social + '40',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  tagInput: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: Colors.textPrimary,
-    minWidth: 140,
-  },
-  tagHint: {
-    fontSize: 11,
-    color: Colors.textTertiary,
-    marginTop: 6,
-  },
-  socialLink: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    marginHorizontal: 20,
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: Colors.backgroundCard,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    marginBottom: 12,
-    gap: 12,
-  },
-  socialLinkIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    justifyContent: 'center' as const,
-    alignItems: 'center' as const,
-  },
-  socialLinkText: {
-    flex: 1,
-  },
-  socialLinkTitle: {
-    fontSize: 15,
-    fontWeight: '700' as const,
-    color: Colors.textPrimary,
-  },
-  socialLinkSubtitle: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 2,
   },
   whoopRow: {
     flexDirection: 'row' as const,

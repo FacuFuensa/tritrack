@@ -122,7 +122,7 @@ export interface AllTimeStats {
   runBestPace: number;
 }
 
-export type IntegrationType = 'healthkit' | 'strava' | 'whoop' | 'garmin';
+export type IntegrationType = 'strava' | 'whoop';
 
 export type IntegrationStatus = 'disconnected' | 'connecting' | 'connected' | 'syncing' | 'error' | 'needs_reauth' | 'not_available';
 
@@ -197,68 +197,13 @@ export interface ImportedWorkout {
   importedAt: string;
 }
 
-export interface SharingToggles {
-  shareWorkouts: boolean;
-  shareBests: boolean;
-  shareRecovery: boolean;
-  shareEvents: boolean;
-}
-
-export type PrivacySetting = 'everything' | 'best_stats' | 'nothing';
-
 export interface UserAccount {
   id: string;
   email: string;
   displayName: string;
   photoUrl?: string;
-  provider: 'email' | 'google';
+  provider: 'email';
   createdAt: string;
   lastLoginAt: string;
 }
 
-export interface NameTag {
-  tag: string;
-  createdAt: string;
-  changesLeft: number;
-}
-
-export interface FriendRequest {
-  id: string;
-  fromUserId: string;
-  fromNameTag: string;
-  fromDisplayName: string;
-  fromPhotoUrl?: string;
-  toUserId: string;
-  toNameTag: string;
-  status: 'pending' | 'accepted' | 'declined';
-  createdAt: string;
-}
-
-export interface Friend {
-  id: string;
-  userId: string;
-  nameTag: string;
-  displayName: string;
-  photoUrl?: string;
-  addedAt: string;
-  isBlocked: boolean;
-}
-
-export interface SharedStats {
-  totalWorkouts: number;
-  bestRunDistance: number;
-  longestRide: number;
-  swimTotal: number;
-  currentStreak: number;
-  totalTrainingTime: number;
-}
-
-export interface InviteLink {
-  id: string;
-  code: string;
-  createdBy: string;
-  createdAt: string;
-  expiresAt?: string;
-  usedBy?: string;
-  usedAt?: string;
-}

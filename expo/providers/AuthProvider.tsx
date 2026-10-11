@@ -53,10 +53,8 @@ const DEFAULT_WHOOP_SYNC: WhoopSyncState = {
 };
 
 const DEFAULT_INTEGRATIONS: Record<IntegrationType, IntegrationConfig> = {
-  healthkit: { type: 'healthkit', status: 'disconnected', autoSync: true },
   strava: { type: 'strava', status: 'disconnected', autoSync: true },
   whoop: { type: 'whoop', status: 'disconnected', autoSync: true },
-  garmin: { type: 'garmin', status: 'not_available', autoSync: false },
 };
 
 const DEFAULT_SOURCE_PREFS: SourcePreferences = {
@@ -232,10 +230,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       console.log('[AuthProvider] User data loaded');
       const loadedIntegrations = dataQuery.data.integrations ?? {};
       const mergedIntegrations: Record<IntegrationType, IntegrationConfig> = {
-        healthkit: { ...DEFAULT_INTEGRATIONS.healthkit, ...(loadedIntegrations.healthkit ?? {}) },
         strava: { ...DEFAULT_INTEGRATIONS.strava, ...(loadedIntegrations.strava ?? {}) },
         whoop: { ...DEFAULT_INTEGRATIONS.whoop, ...(loadedIntegrations.whoop ?? {}) },
-        garmin: { ...DEFAULT_INTEGRATIONS.garmin, ...(loadedIntegrations.garmin ?? {}) },
       };
       setIntegrations(mergedIntegrations);
       setWhoopData(dataQuery.data.whoopData ?? null);

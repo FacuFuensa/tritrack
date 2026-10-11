@@ -13,12 +13,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Trash2, Plus, X, ChevronRight, Star, Calendar, Minus, Zap, Heart, Activity, Users, Cloud, User, Bell } from 'lucide-react-native';
+import { Trash2, Plus, X, ChevronRight, Calendar, Minus, Zap, Heart, Activity, Cloud, User, Bell } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { WorkoutConfig } from '@/constants/types';
 import { useTraining } from '@/providers/TrainingProvider';
 import GlassCard from '@/components/GlassCard';
-import SupplementModal from '@/components/SupplementModal';
 import RecoveryModal from '@/components/RecoveryModal';
 import AddWorkoutModal from '@/components/AddWorkoutModal';
 import EditWorkoutModal from '@/components/EditWorkoutModal';
@@ -32,7 +31,6 @@ export default function SettingsScreen() {
     profile,
     updateProfile,
     supplements,
-    addSupplement,
     removeSupplement,
     recoveryOptions,
     addRecoveryOption,
@@ -43,18 +41,14 @@ export default function SettingsScreen() {
     removeWorkoutConfig,
     updateWorkoutConfig,
     clearAllData,
-    activeEvent,
-    events,
   } = useTraining();
   const { integrations, isSignedIn, account } = useAuth();
 
   const connectedCount = [
-    integrations?.healthkit,
     integrations?.strava,
     integrations?.whoop,
   ].filter(i => i?.status === 'connected').length;
 
-  const [showSupplementModal, setShowSupplementModal] = useState(false);
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
   const [editingWorkout, setEditingWorkout] = useState<WorkoutConfig | null>(null);
@@ -165,38 +159,6 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>EVENT</Text>
         <GlassCard>
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Active Event</Text>
-            <TouchableOpacity
-              style={styles.pickerBtn}
-              onPress={() => router.push('/events' as never)}
-              activeOpacity={0.7}
-              testID="settings-active-event"
-            >
-              <View style={styles.pickerBtnLeft}>
-                {activeEvent ? (
-                  <>
-                    <Star size={14} color={Colors.accent} />
-                    <Text style={styles.pickerBtnText}>{activeEvent.name}</Text>
-                  </>
-                ) : (
-                  <Text style={styles.pickerBtnTextDim}>No active event</Text>
-                )}
-              </View>
-              <ChevronRight size={16} color={Colors.textTertiary} />
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity
-            style={styles.manageEventsBtn}
-            onPress={() => router.push('/events' as never)}
-            activeOpacity={0.7}
-          >
-            <Calendar size={16} color={Colors.accent} />
-            <Text style={styles.manageEventsBtnText}>Manage Events</Text>
-            <ChevronRight size={16} color={Colors.textTertiary} />
-          </TouchableOpacity>
-
-          <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Event Day</Text>
             <TouchableOpacity
               style={styles.pickerBtn}
@@ -301,15 +263,6 @@ export default function SettingsScreen() {
               </View>
             ))
           )}
-          <TouchableOpacity
-            style={styles.addListBtn}
-            onPress={() => setShowSupplementModal(true)}
-          >
-            <Plus size={16} color={Colors.supplement} />
-            <Text style={[styles.addListBtnText, { color: Colors.supplement }]}>
-              Add Supplement
-            </Text>
-          </TouchableOpacity>
         </GlassCard>
 
         <Text style={styles.sectionTitle}>RECOVERY OPTIONS</Text>
@@ -406,31 +359,13 @@ export default function SettingsScreen() {
 
           <View style={styles.settingsLinkDivider} />
 
-          <TouchableOpacity
-            style={styles.settingsLinkRow}
-            onPress={() => router.push('/friends' as never)}
-            activeOpacity={0.7}
-            testID="settings-friends"
-          >
-            <View style={[styles.settingsLinkIcon, { backgroundColor: Colors.socialDark }]}>
-              <Users size={18} color={Colors.social} />
-            </View>
-            <View style={styles.settingsLinkText}>
-              <Text style={styles.settingsLinkTitle}>Friends & Social</Text>
-              <Text style={styles.settingsLinkSubtitle}>Manage contacts & privacy</Text>
-            </View>
-            <ChevronRight size={16} color={Colors.textTertiary} />
-          </TouchableOpacity>
-
-          <View style={styles.settingsLinkDivider} />
-
           <View style={styles.settingsLinkRow}>
             <View style={[styles.settingsLinkIcon, { backgroundColor: Colors.accent + '15' }]}>
               <Bell size={18} color={Colors.accent} />
             </View>
             <View style={styles.settingsLinkText}>
               <Text style={styles.settingsLinkTitle}>Notifications</Text>
-              <Text style={styles.settingsLinkSubtitle}>Friend requests & activity syncs</Text>
+              <Text style={styles.settingsLinkSubtitle}>Activity syncs</Text>
             </View>
           </View>
         </GlassCard>
@@ -444,12 +379,6 @@ export default function SettingsScreen() {
         <View style={{ height: 48 }} />
       </ScrollView>
 
-      <SupplementModal
-        visible={showSupplementModal}
-        onClose={() => setShowSupplementModal(false)}
-        onAdd={addSupplement}
-        existing={supplements}
-      />
       <RecoveryModal
         visible={showRecoveryModal}
         onClose={() => setShowRecoveryModal(false)}

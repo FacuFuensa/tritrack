@@ -1,116 +1,37 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  Linking,
-  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, ExternalLink, RefreshCw, CheckCircle, XCircle, Zap } from 'lucide-react-native';
+import { ChevronLeft, Clock, Zap } from 'lucide-react-native';
 import Colors from '@/constants/colors';
-import { supabase, isSupabaseConfigured } from '@/utils/supabase';
-import { useAuth } from '@/providers/AuthProvider';
 
-const WEB_APP_URL = 'https://ironlog-inky.vercel.app';
-
-interface ConnectionStatus {
-  strava: boolean;
-  garmin: boolean;
-}
+// Strava y Whoop se conectan desde el backend (Edge Functions de Supabase) en
+// la próxima versión. Hasta entonces esta pantalla solo avisa.
+const integrations = [
+  {
+    key: 'strava',
+    name: 'Strava',
+    description: 'Sincroniza tus actividades: trote, bici y nado.',
+    color: Colors.strava,
+  },
+  {
+    key: 'whoop',
+    name: 'WHOOP',
+    description: 'Recuperación, sueño y strain del día.',
+    color: Colors.whoop,
+  },
+];
 
 export default function IntegrationsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { session } = useAuth();
-  const userId = session?.user?.id ?? null;
-
-  const [status, setStatus] = useState<ConnectionStatus>({ strava: false, garmin: false });
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const checkStatus = useCallback(async () => {
-    if (!userId) {
-      setLoading(false);
-      setRefreshing(false);
-      return;
-    }
-
-    if (!isSupabaseConfigured()) {
-      console.log('[Integrations] Supabase not configured, using disconnected state');
-      setStatus({ strava: false, garmin: false });
-      setLoading(false);
-      setRefreshing(false);
-      return;
-    }
-
-    try {
-      const { data, error: profileError } = await supabase
-        .from('profiles')
-        .select('strava_access_token, strava_athlete_id')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (profileError) {
-        console.error('[Integrations] Profile status query error:', profileError.message);
-      }
-
-      const { count: garminCount, error: garminError } = await supabase
-        .from('activities')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .eq('source', 'garmin');
-
-      if (garminError) {
-        console.error('[Integrations] Garmin status query error:', garminError.message);
-      }
-
-      setStatus({
-        strava: !!(data?.strava_access_token && data?.strava_athlete_id),
-        garmin: (garminCount ?? 0) > 0,
-      });
-    } catch (e) {
-      console.error('[Integrations] Status check error:', e);
-      setStatus({ strava: false, garmin: false });
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [userId]);
-
-  useEffect(() => { checkStatus(); }, [checkStatus]);
-
-  const handleRefresh = () => {
-    setRefreshing(true);
-    checkStatus();
-  };
-
-  const openWebApp = (path = '') => {
-    Linking.openURL(WEB_APP_URL + path);
-  };
-
-  const integrations = [
-    {
-      key: 'strava',
-      name: 'Strava',
-      description: 'Auto-syncs all your activities — runs, rides, swims.',
-      color: '#FC4C02',
-      connected: status.strava,
-      path: '/dashboard?tab=settings',
-    },
-    {
-      key: 'garmin',
-      name: 'Garmin',
-      description: 'Import your Garmin workouts via ZIP file upload.',
-      color: '#009CDE',
-      connected: status.garmin,
-      path: '/dashboard?tab=settings',
-    },
-  ];
 
   return (
     <LinearGradient
@@ -122,12 +43,7 @@ export default function IntegrationsScreen() {
           <ChevronLeft size={22} color={Colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Integrations</Text>
-        <TouchableOpacity style={styles.backBtn} onPress={handleRefresh} activeOpacity={0.7}>
-          {refreshing
-            ? <ActivityIndicator size="small" color={Colors.textSecondary} />
-            : <RefreshCw size={18} color={Colors.textSecondary} />
-          }
-        </TouchableOpacity>
+        <View style={styles.backBtn} />
       </View>
 
       <ScrollView
@@ -135,76 +51,37 @@ export default function IntegrationsScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 32 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Banner */}
         <View style={styles.banner}>
           <View style={styles.bannerIconWrap}>
-            <Zap size={22} color="#f5622e" />
+            <Zap size={22} color={Colors.accent} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.bannerTitle}>Manage on IronLog Web</Text>
+            <Text style={styles.bannerTitle}>Disponible en la próxima versión</Text>
             <Text style={styles.bannerBody}>
-              Connect Strava and import Garmin files on the web app. Your data syncs instantly to this app.
+              Por ahora tus entrenamientos se guardan en este teléfono.
             </Text>
           </View>
         </View>
 
-        {/* Status cards */}
-        <Text style={styles.sectionLabel}>CONNECTION STATUS</Text>
+        <Text style={styles.sectionLabel}>PRÓXIMAMENTE</Text>
 
-        {loading ? (
-          <View style={styles.loadingWrap}>
-            <ActivityIndicator color={Colors.accent} />
-          </View>
-        ) : (
-          integrations.map((item) => (
-            <View key={item.key} style={styles.card}>
-              <View style={[styles.cardStripe, { backgroundColor: item.color }]} />
-              <View style={styles.cardBody}>
-                <View style={styles.cardRow}>
-                  <View>
-                    <Text style={styles.cardName}>{item.name}</Text>
-                    <Text style={styles.cardDesc}>{item.description}</Text>
-                  </View>
-                  {item.connected ? (
-                    <View style={styles.badge}>
-                      <CheckCircle size={14} color={Colors.success} />
-                      <Text style={[styles.badgeText, { color: Colors.success }]}>Connected</Text>
-                    </View>
-                  ) : (
-                    <View style={[styles.badge, styles.badgeOff]}>
-                      <XCircle size={14} color={Colors.textTertiary} />
-                      <Text style={[styles.badgeText, { color: Colors.textTertiary }]}>Not connected</Text>
-                    </View>
-                  )}
+        {integrations.map((item) => (
+          <View key={item.key} style={styles.card}>
+            <View style={[styles.cardStripe, { backgroundColor: item.color }]} />
+            <View style={styles.cardBody}>
+              <View style={styles.cardRow}>
+                <View>
+                  <Text style={styles.cardName}>{item.name}</Text>
+                  <Text style={styles.cardDesc}>{item.description}</Text>
                 </View>
-                <TouchableOpacity
-                  style={[styles.connectBtn, { borderColor: item.color + '50' }]}
-                  onPress={() => openWebApp(item.path)}
-                  activeOpacity={0.8}
-                >
-                  <ExternalLink size={14} color={item.color} />
-                  <Text style={[styles.connectBtnText, { color: item.color }]}>
-                    {item.connected ? 'Manage on Web' : 'Connect on Web'}
-                  </Text>
-                </TouchableOpacity>
+                <View style={styles.badge}>
+                  <Clock size={14} color={Colors.textTertiary} />
+                  <Text style={styles.badgeText}>Próximamente</Text>
+                </View>
               </View>
             </View>
-          ))
-        )}
-
-        {/* Open web app button */}
-        <TouchableOpacity
-          style={styles.openWebBtn}
-          onPress={() => openWebApp()}
-          activeOpacity={0.85}
-        >
-          <ExternalLink size={18} color="#fff" />
-          <Text style={styles.openWebBtnText}>Open IronLog Web App</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.hint}>
-          After connecting on the web, pull to refresh here to update status.
-        </Text>
+          </View>
+        ))}
       </ScrollView>
     </LinearGradient>
   );
@@ -231,13 +108,13 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 20 },
   banner: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 14,
-    backgroundColor: 'rgba(245,98,46,0.08)',
-    borderWidth: 1, borderColor: 'rgba(245,98,46,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
     borderRadius: 16, padding: 16, marginTop: 8, marginBottom: 24,
   },
   bannerIconWrap: {
     width: 40, height: 40, borderRadius: 12,
-    backgroundColor: 'rgba(245,98,46,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
     justifyContent: 'center', alignItems: 'center',
   },
   bannerTitle: {
@@ -260,7 +137,7 @@ const styles = StyleSheet.create({
   cardBody: { padding: 16 },
   cardRow: {
     flexDirection: 'row', alignItems: 'flex-start',
-    justifyContent: 'space-between', marginBottom: 14,
+    justifyContent: 'space-between',
   },
   cardName: {
     fontSize: 17, fontWeight: '700', color: Colors.textPrimary,
@@ -271,27 +148,7 @@ const styles = StyleSheet.create({
   badge: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 20, backgroundColor: Colors.success + '15',
+    borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  badgeOff: { backgroundColor: 'rgba(255,255,255,0.06)' },
-  badgeText: { fontSize: 11, fontWeight: '600' },
-  connectBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, paddingVertical: 11, borderRadius: 12,
-    borderWidth: 1, backgroundColor: 'rgba(255,255,255,0.03)',
-  },
-  connectBtnText: { fontSize: 14, fontWeight: '600' },
-  openWebBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 10, paddingVertical: 15, borderRadius: 14,
-    backgroundColor: '#f5622e', marginTop: 8,
-  },
-  openWebBtnText: {
-    fontSize: 15, fontWeight: '700', color: '#fff', letterSpacing: 0.3,
-  },
-  hint: {
-    fontSize: 12, color: Colors.textTertiary,
-    textAlign: 'center', marginTop: 16, lineHeight: 18,
-  },
-  loadingWrap: { paddingVertical: 40, alignItems: 'center' },
+  badgeText: { fontSize: 11, fontWeight: '600', color: Colors.textTertiary },
 });

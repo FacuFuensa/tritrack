@@ -24,7 +24,6 @@ import { convertDistance } from '@/utils/calculations';
 import WeekCalendar from '@/components/WeekCalendar';
 import WorkoutCard from '@/components/WorkoutCard';
 import GlassCard from '@/components/GlassCard';
-import SupplementModal from '@/components/SupplementModal';
 import RecoveryModal from '@/components/RecoveryModal';
 import WeeklySummaryModal from '@/components/WeeklySummaryModal';
 import ProgressBottomSheet from '@/components/ProgressBottomSheet';
@@ -38,7 +37,6 @@ export default function HomeScreen() {
   const {
     profile,
     supplements,
-    addSupplement,
     recoveryOptions,
     addRecoveryOption,
     dailyLogs,
@@ -52,11 +50,9 @@ export default function HomeScreen() {
     dataReady,
     activeEvent,
     activeGoalEvent,
-    hasSeenEventOnboarding,
   } = useTraining();
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [showSupplementModal, setShowSupplementModal] = useState(false);
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const [showWeeklySummary, setShowWeeklySummary] = useState(false);
   const [showProgressSheet, setShowProgressSheet] = useState(false);
@@ -112,13 +108,6 @@ export default function HomeScreen() {
     }
     console.log('[Home] Batch save complete:', savedCount, 'of', imported.length, 'saved');
   }, [workoutConfigs, getDailyLog, saveWorkout]);
-
-  useEffect(() => {
-    if (dataReady && hasSeenEventOnboarding === false) {
-      console.log('[HomeScreen] First launch detected, redirecting to onboarding');
-      router.replace('/onboarding' as never);
-    }
-  }, [dataReady, hasSeenEventOnboarding, router]);
 
   const performStravaAutoSync = useCallback(async () => {
     if (autoSyncRunning.current) return;
@@ -524,14 +513,6 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                 );
               })}
-              <TouchableOpacity
-                style={styles.addBtn}
-                onPress={() => setShowSupplementModal(true)}
-                testID="add-supplement-btn"
-              >
-                <Plus size={16} color={Colors.supplement} />
-                <Text style={styles.addBtnText}>Add Supplement</Text>
-              </TouchableOpacity>
             </GlassCard>
           </>
         ) : null}
@@ -676,12 +657,6 @@ export default function HomeScreen() {
         <View style={{ height: 32 }} />
       </ScrollView>
 
-      <SupplementModal
-        visible={showSupplementModal}
-        onClose={() => setShowSupplementModal(false)}
-        onAdd={addSupplement}
-        existing={supplements}
-      />
       <RecoveryModal
         visible={showRecoveryModal}
         onClose={() => setShowRecoveryModal(false)}

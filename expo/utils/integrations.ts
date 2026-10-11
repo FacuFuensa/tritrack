@@ -93,33 +93,6 @@ export function isWhoopConfigured(): boolean {
   return Boolean(WHOOP_CLIENT_ID && WHOOP_CLIENT_SECRET);
 }
 
-export async function connectHealthKit(): Promise<boolean> {
-  console.log('[Integrations] Requesting HealthKit permissions...');
-
-  if (Platform.OS === 'web') {
-    throw new Error('Apple Health is only available on iOS devices.');
-  }
-
-  if (Platform.OS === 'android') {
-    throw new Error('Apple Health is only available on iOS. For Android, use Google Fit via Strava.');
-  }
-
-  throw new Error(
-    'Apple Health integration requires a native iOS build with HealthKit entitlements. ' +
-    'This feature is not available in Expo Go.\n\n' +
-    'Workaround: Connect your Apple Watch to Strava, then use the Strava integration to import workouts.'
-  );
-}
-
-export async function disconnectHealthKit(): Promise<void> {
-  console.log('[Integrations] Disconnecting HealthKit...');
-}
-
-export async function fetchHealthKitWorkouts(): Promise<ImportedWorkout[]> {
-  console.log('[Integrations] HealthKit not available in Expo Go');
-  return [];
-}
-
 export async function connectStrava(): Promise<{ accessToken: string; refreshToken: string; userId: string; expiresAt: number }> {
   if (!STRAVA_CLIENT_ID) {
     console.error('[Strava] Missing STRAVA_CLIENT_ID');
@@ -799,23 +772,6 @@ export async function fetchWhoopDailyRecords(
   return sortedResults;
 }
 
-export async function connectGarmin(): Promise<never> {
-  throw new Error(
-    'Garmin Health API integration requires approved Garmin Health API partner credentials, ' +
-    'which are not currently configured.\n\n' +
-    'Alternative: Connect your Garmin device to Strava, then use the Strava integration to import your workouts automatically.'
-  );
-}
-
-export async function disconnectGarmin(): Promise<void> {
-  console.log('[Integrations] Disconnecting Garmin...');
-}
-
-export async function fetchGarminActivities(): Promise<ImportedWorkout[]> {
-  console.log('[Integrations] Garmin API not available');
-  return [];
-}
-
 export function isDuplicateWorkout(
   existing: ImportedWorkout[],
   newWorkout: ImportedWorkout
@@ -827,10 +783,8 @@ export function isDuplicateWorkout(
 
 export function getIntegrationDisplayName(type: IntegrationType): string {
   switch (type) {
-    case 'healthkit': return 'Apple Health';
     case 'strava': return 'Strava';
     case 'whoop': return 'WHOOP';
-    case 'garmin': return 'Garmin';
   }
 }
 

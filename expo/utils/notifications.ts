@@ -54,26 +54,6 @@ export async function getNotificationPermissionStatus(): Promise<string> {
   }
 }
 
-export async function sendFriendRequestNotification(fromName: string): Promise<void> {
-  if (Platform.OS === 'web') return;
-  try {
-    const { status } = await Notifications.getPermissionsAsync();
-    if (status !== 'granted') return;
-
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: 'New Friend Request',
-        body: `${fromName} sent you a friend request`,
-        data: { type: 'friend_request', screen: '/friends' },
-      },
-      trigger: null,
-    });
-    console.log('[Notifications] Friend request notification sent');
-  } catch (err) {
-    console.error('[Notifications] Failed to send friend request notification:', err);
-  }
-}
-
 export async function sendActivitySyncNotification(
   discipline: string,
   count: number,

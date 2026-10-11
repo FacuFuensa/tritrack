@@ -5,10 +5,8 @@ import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { View, ActivityIndicator, StyleSheet, Platform } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { TrainingProvider, useTraining } from "@/providers/TrainingProvider";
 import { AuthProvider, useAuth } from "@/providers/AuthProvider";
-import { SocialProvider } from "@/providers/SocialProvider";
 import { requestNotificationPermission, addNotificationResponseListener } from "@/utils/notifications";
 import Colors from "@/constants/colors";
 
@@ -21,12 +19,8 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false, gestureEnabled: false }} />
-      <Stack.Screen name="onboarding" options={{ headerShown: false, presentation: 'fullScreenModal', gestureEnabled: false }} />
-      <Stack.Screen name="events" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="integrations" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="account" options={{ headerShown: false, presentation: 'modal' }} />
-      <Stack.Screen name="friends" options={{ headerShown: false, presentation: 'modal' }} />
-      <Stack.Screen name="friend-profile" options={{ headerShown: false, presentation: 'card' }} />
     </Stack>
   );
 }
@@ -35,14 +29,14 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const segments = useSegments();
   const { isSignedIn, isLoading: authLoading } = useAuth();
-  const { hasSeenEventOnboarding, isLoading: trainingLoading } = useTraining();
+  const { isLoading: trainingLoading } = useTraining();
   const notificationPermissionRequested = useRef(false);
 
   useEffect(() => {
     if (authLoading || trainingLoading) return;
 
     const currentSegment = segments[0] ?? '';
-    console.log('[AuthGate] isSignedIn:', isSignedIn, 'hasSeenOnboarding:', hasSeenEventOnboarding, 'segment:', currentSegment);
+    console.log('[AuthGate] isSignedIn:', isSignedIn, 'segment:', currentSegment);
 
     if (!isSignedIn) {
       if (currentSegment !== 'login') {
@@ -53,21 +47,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     }
 
     if (currentSegment === 'login') {
-      const checkNewUser = async () => {
-        const wasNewSignup = await AsyncStorage.getItem('tritrack_is_new_signup');
-        if (wasNewSignup === 'true' && !hasSeenEventOnboarding) {
-          console.log('[AuthGate] New signup detected, showing onboarding');
-          await AsyncStorage.removeItem('tritrack_is_new_signup');
-          router.replace('/onboarding' as never);
-        } else {
-          console.log('[AuthGate] Existing user signed in, going to app');
-          await AsyncStorage.removeItem('tritrack_is_new_signup');
-          router.replace('/(tabs)/(home)' as never);
-        }
-      };
-      checkNewUser();
+      router.replace('/(tabs)/(home)' as never);
     }
-  }, [isSignedIn, authLoading, trainingLoading, segments, hasSeenEventOnboarding]);
+  }, [isSignedIn, authLoading, trainingLoading, segments]);
 
   useEffect(() => {
     if (!isSignedIn || notificationPermissionRequested.current) return;
@@ -90,9 +72,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       const data = response.notification.request.content.data;
       console.log('[AuthGate] Notification tapped, data:', data);
 
-      if (data?.type === 'friend_request' && data?.screen) {
-        router.push(data.screen as never);
-      } else if (data?.type === 'activity_sync' && data?.screen) {
+      if (data?.type === 'activity_sync' && data?.screen) {
         router.push(data.screen as never);
       }
     });
@@ -125,14 +105,10 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <AuthProvider>
           <TrainingProvider>
-           
-            <SocialProvider>
-              <StatusBar style="light" />
-              <AuthGate>
-                <RootLayoutNav />
-              </AuthGate>
-            </SocialProvider>
-            
+            <StatusBar style="light" />
+            <AuthGate>
+              <RootLayoutNav />
+            </AuthGate>
           </TrainingProvider>
         </AuthProvider>
       </GestureHandlerRootView>
