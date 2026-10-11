@@ -1,0 +1,22 @@
+{
+  "cli": {
+    "version": ">= 21.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "production": {
+      "autoIncrement": true,
+      "environment": "production",
+      "channel": "production"
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "ffuensalida@icloud.com",
+        "appleTeamId": "RS6J29JLPS",
+        "ascAppId": "6821518957"
+      }
+    }
+  }
+}

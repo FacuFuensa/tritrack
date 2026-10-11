@@ -1,0 +1,122 @@
+# Build de iOS en un runner macOS de GitHub, copiado del de cero-app.
+#
+# La clave es `--local`: el build corre ACÁ, en el runner, no en los servidores
+# de EAS, así que NO consume builds del plan Free de EAS. EAS igual se usa para
+# las credenciales: el certificado, el provisioning profile y la API key de App
+# Store Connect viven en sus servidores, que es donde deben estar.
+#
+# Este repo es público, así que los minutos de macOS de GitHub no cuentan
+# contra la cuota del plan. Igual: un build tarda ~25-35 min, y para cambios
+# que son solo JavaScript está `update-ota.yml`, que llega al teléfono en
+# segundos. Este workflow es para cuando cambia algo NATIVO: una dependencia
+# con código nativo, permisos del Info.plist, el ícono, la versión del SDK.
+#
+# Se dispara a mano a propósito.
+
+name: Build iOS (sin gastar EAS)
+
+on:
+  workflow_dispatch:
+    inputs:
+      submit:
+        description: "¿Subir a TestFlight al terminar?"
+        type: boolean
+        default: true
+
+# Dos builds a la vez no apuran nada.
+concurrency:
+  group: build-ios
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: expo
+
+jobs:
+  build:
+    # macos-26, NO macos-15: el runner 15 trae Xcode 16 (SDK de iOS 18.5) y
+    # App Store Connect rechaza la subida con un 409 — "All iOS apps must be
+    # built with the iOS 26 SDK or later". El .ipa compila igual, así que el
+    # error aparece recién al final, después de pagar el build entero.
+    runs-on: macos-26
+    # Tope duro: si algo se cuelga, que no siga corriendo.
+    timeout-minutes: 60
+
+    steps:
+      - name: Traer el código
+        uses: actions/checkout@v4
+
+      # PRIMERO, antes de gastar un minuto en compilar: Apple sube el piso de
+      # SDK cada tanto y el rechazo llega recién al subir, con el build ya
+      # hecho. Acá se elige el Xcode más nuevo del runner y se corta en ~1
+      # minuto si su SDK de iOS quedó por debajo del piso.
+      - name: Verificar que el SDK de iOS alcance el piso de Apple
+        env:
+          PISO_SDK_IOS: 26
+        run: |
+          set -euo pipefail
+          nuevo=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "Xcode elegido: $nuevo"
+          sudo xcode-select -s "$nuevo/Contents/Developer"
+          xcodebuild -version
+          sdk=$(xcodebuild -showsdks | grep -o 'iphoneos[0-9][0-9.]*' | sort -V | tail -1)
+          echo "SDK de iOS disponible: $sdk"
+          major=${sdk#iphoneos}; major=${major%%.*}
+          if [ "$major" -lt "$PISO_SDK_IOS" ]; then
+            echo "::error::El runner compila con iOS SDK $major y App Store Connect exige $PISO_SDK_IOS o mayor. Se corta acá para no gastar el build entero."
+            exit 1
+          fi
+
+      - name: Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: expo/package-lock.json
+
+      # El repo necesita legacy-peer-deps (conflicto de peers de
+      # lucide-react-native con React 19). Ya está en expo/.npmrc, así que
+      # `npm ci` lo toma solo.
+      - name: Instalar dependencias
+        run: npm ci
+
+      # El gate del proyecto, igual que en local. Que un build de 30 minutos
+      # falle recién en el archive por un error de tipos es tirar el tiempo.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Compilar el .ipa acá (no en EAS)
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas build \
+            --platform ios \
+            --profile production \
+            --local \
+            --non-interactive \
+            --output "$RUNNER_TEMP/tritrack.ipa"
+
+      - name: Subir a TestFlight
+        if: ${{ inputs.submit }}
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas submit \
+            --platform ios \
+            --profile production \
+            --path "$RUNNER_TEMP/tritrack.ipa" \
+            --non-interactive
+
+      # Queda descargable aunque falle el submit: el .ipa costó 30 minutos y no
+      # hay por qué volver a compilarlo por un token vencido.
+      - name: Guardar el .ipa
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tritrack-ipa
+          path: ${{ runner.temp }}/tritrack.ipa
+          if-no-files-found: ignore
+          retention-days: 14

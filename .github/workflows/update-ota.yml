@@ -1,0 +1,84 @@
+# Publicar un cambio de JavaScript al teléfono, por aire, en segundos.
+# Copiado del de cero-app.
+#
+# Esto reemplaza a la mayoría de los builds. Todo lo que sea JS/TS —una
+# pantalla, un texto, un fix de lógica, un estilo— viaja como update y llega a
+# los teléfonos que ya tienen la app instalada, sin pasar por Apple. Corre en
+# runner Linux, así que el costo es despreciable.
+#
+# NO sirve para cambios NATIVOS: una dependencia con código nativo, permisos
+# nuevos en Info.plist, el ícono, o subir de SDK. Eso necesita `build-ios.yml`.
+# La regla práctica: si tocaste solo archivos .ts/.tsx y no agregaste una
+# librería que traiga código nativo, esto alcanza.
+#
+# El update se entrega SOLO a binarios con el mismo `runtimeVersion`, que sale
+# de `expo/app.json` con policy `appVersion` (hoy "1.0.0"). Si subís `version`
+# en app.json, los binarios viejos dejan de recibir updates, como corresponde.
+#
+# El binario tiene que haber salido con canal: el perfil `production` de
+# eas.json lleva `"channel": "production"`. Un build sin canal no recibe nada.
+
+name: Publicar update OTA
+
+on:
+  workflow_dispatch:
+    inputs:
+      mensaje:
+        description: "Qué cambia (queda en el historial de updates)"
+        type: string
+        required: true
+
+concurrency:
+  group: update-ota
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: expo
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Traer el código
+        uses: actions/checkout@v4
+
+      - name: Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: expo/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      # Mismo gate que un build. Un update malo llega a los teléfonos en
+      # segundos y sin revisión de Apple de por medio: es MÁS peligroso que un
+      # build, no menos.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: EAS CLI
+        run: npm install -g eas-cli
+
+      # `--environment production` NO es opcional, aunque el CLI lo deje serlo
+      # en SDK 54: es lo que hace que EAS baje las variables del environment
+      # "production" del servidor antes de bundlear. Sin la bandera, el update
+      # sale sin las EXPO_PUBLIC_* y la app se abre como si no tuviera backend.
+      #
+      # El mensaje pasa por una variable de entorno y no interpolado en el
+      # script: en un repo público, un input con comillas o `$(...)` no tiene
+      # que poder romper (ni inyectar) el comando.
+      - name: Publicar al canal de producción
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          MENSAJE: ${{ inputs.mensaje }}
+        run: |
+          eas update \
+            --channel production \
+            --environment production \
+            --message "$MENSAJE" \
+            --non-interactive
