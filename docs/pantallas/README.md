@@ -313,9 +313,10 @@ por segmento (nado, T1, bici, T2, trote) proporcional a su tiempo.
 `{ uri: string | null; size?: number /* 220 */; kind: RaceKind }` → la
 medalla que se inclina con el teléfono.
 - `DeviceMotion` de `expo-sensors` (ya instalado), `setUpdateInterval(16)`.
-  `rotation.beta` → `rotateX`, `rotation.gamma` → `rotateY`, cada uno
-  limitado a ±18°, con `perspective: 800`. Usar `Animated` con un resorte
-  corto para suavizar.
+  `rotation.beta` → `rotateX`, `rotation.gamma` → `rotateY`, **relativos a
+  la postura** (la primera lectura es el cero; la base la sigue despacio),
+  ×2,5 y limitados a ±30°, con `perspective: 800` (`tiltStep` en
+  `utils/trophies.ts`; pedido de Facu, 11/10: "más agresivo"). Resorte corto.
 - Brillo: un `LinearGradient` (`expo-linear-gradient`) blanco 0 → 0.35 → 0 que
   se desplaza en X según `gamma`.
 - Sin `uri`: un disco con `LinearGradient` dorado (`#F5D06F` → `#B8860B`) y

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseTime, buildManualResult, editionDifference, splitLayout } from './trophies.ts';
+import { parseTime, buildManualResult, editionDifference, splitLayout, tiltStep, TILT_MAX } from './trophies.ts';
 
 test('tiempos manuales vacíos, válidos e inválidos', () => {
   assert.equal(parseTime(['', '', '']), null);
@@ -31,4 +31,28 @@ test('ediciones sin tiempo o con tramos suspendidos no son comparables', () => {
   assert.equal(editionDifference(a, { ...a, total_s: null }), null);
   assert.equal(editionDifference({ ...a, cancelled: ['swim'] }, a), null);
   assert.equal(editionDifference(null, a), null);
+});
+
+test('inclinación: la primera lectura es el punto cero, aunque el teléfono esté inclinado', () => {
+  const s = tiltStep(null, 50, -5);
+  assert.deepEqual([s.x, s.y], [0, 0]);
+  assert.deepEqual(s.base, { beta: 50, gamma: -5 });
+});
+test('inclinación: un movimiento chico se amplifica ×2,5', () => {
+  const s = tiltStep({ beta: 50, gamma: 0 }, 54, -2);
+  assert.equal(Math.round(s.x), 10);
+  assert.equal(Math.round(s.y), -5);
+});
+test('inclinación: tope de ±30°', () => {
+  const s = tiltStep({ beta: 50, gamma: 0 }, 90, -40);
+  assert.deepEqual([s.x, s.y], [TILT_MAX, -TILT_MAX]);
+  assert.equal(TILT_MAX, 30);
+});
+test('inclinación: si cambiás de postura, se recentra sola de a poco', () => {
+  let s = tiltStep(null, 50, 0);
+  s = tiltStep(s.base, 60, 0);
+  const primero = s.x;
+  for (let i = 0; i < 200; i++) s = tiltStep(s.base, 60, 0);
+  assert.ok(primero > 20);
+  assert.ok(s.x < 1);
 });
