@@ -58,7 +58,7 @@ const supabaseFetch: typeof fetch = async (input, init) => {
 };
 
 if (!hasCredentials) {
-  console.error('[Supabase] MISSING credentials. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY.');
+  console.log('[Supabase] Sin credenciales: la app corre en modo local, sin login.');
 }
 
 const storageAdapter = {

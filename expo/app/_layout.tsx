@@ -9,6 +9,11 @@ import { TrainingProvider, useTraining } from "@/providers/TrainingProvider";
 import { AuthProvider, useAuth } from "@/providers/AuthProvider";
 import { requestNotificationPermission, addNotificationResponseListener } from "@/utils/notifications";
 import Colors from "@/constants/colors";
+import { isSupabaseConfigured } from "@/utils/supabase";
+
+// Sin EXPO_PUBLIC_SUPABASE_URL / ANON_KEY la app abre directo, sin login, y
+// guarda todo en el teléfono (almacenamiento local de TrainingProvider).
+const localOnly = !isSupabaseConfigured();
 
 SplashScreen.preventAutoHideAsync();
 
@@ -38,7 +43,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     const currentSegment = segments[0] ?? '';
     console.log('[AuthGate] isSignedIn:', isSignedIn, 'segment:', currentSegment);
 
-    if (!isSignedIn) {
+    if (!isSignedIn && !localOnly) {
       if (currentSegment !== 'login') {
         console.log('[AuthGate] Not signed in, redirecting to login');
         router.replace('/login' as never);
@@ -49,10 +54,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (currentSegment === 'login') {
       router.replace('/(tabs)/(home)' as never);
     }
-  }, [isSignedIn, authLoading, trainingLoading, segments]);
+  }, [isSignedIn, authLoading, trainingLoading, segments, router]);
 
   useEffect(() => {
-    if (!isSignedIn || notificationPermissionRequested.current) return;
+    if ((!isSignedIn && !localOnly) || notificationPermissionRequested.current) return;
     notificationPermissionRequested.current = true;
 
     const timer = setTimeout(() => {

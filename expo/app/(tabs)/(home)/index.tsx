@@ -9,16 +9,14 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Plus, Check, BarChart3, Target, Zap, Moon, Activity } from 'lucide-react-native';
 import Colors from '@/constants/colors';
-import { Workout, ImportedWorkout } from '@/constants/types';
+import { Workout } from '@/constants/types';
 import { useTraining } from '@/providers/TrainingProvider';
 import { useAuth } from '@/providers/AuthProvider';
 import { formatSleepDuration, hasRealMetrics } from '@/utils/whoopMapper';
-import { getRecoveryIntensitySuggestion, fetchStravaActivities, refreshStravaToken } from '@/utils/integrations';
-import { deduplicateWorkouts } from '@/utils/dedup';
+import { getRecoveryIntensitySuggestion } from '@/utils/integrations';
 import { formatDate, daysUntil, getMonthName, isToday as isTodayUtil, getWeekDates } from '@/utils/dateUtils';
 import { convertDistance } from '@/utils/calculations';
 import WeekCalendar from '@/components/WeekCalendar';
@@ -32,7 +30,6 @@ import ProgressBottomSheet from '@/components/ProgressBottomSheet';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   
   const {
     profile,
@@ -57,123 +54,8 @@ export default function HomeScreen() {
   const [showWeeklySummary, setShowWeeklySummary] = useState(false);
   const [showProgressSheet, setShowProgressSheet] = useState(false);
 
-  const { integrations, getWhoopMetricsForDate, importedWorkouts, addImportedWorkouts, updateIntegration } = useAuth();
-  const autoSyncRunning = useRef(false);
+  const { integrations, getWhoopMetricsForDate, importedWorkouts } = useAuth();
   const reconciliationDone = useRef(false);
-
-  const saveImportedToLogs = useCallback((imported: ImportedWorkout[]) => {
-    console.log('[Home] Saving', imported.length, 'imported workouts to daily logs');
-    const savedInThisBatch = new Set<string>();
-    let savedCount = 0;
-
-    for (const iw of imported) {
-      const batchKey = `${iw.source}_${iw.sourceId}`;
-      if (savedInThisBatch.has(batchKey)) continue;
-
-      const config = workoutConfigs.find((c) => c.id === iw.type);
-      const fallback = config ?? workoutConfigs.find((c) => c.id === 'run') ?? workoutConfigs[0];
-      if (!fallback) continue;
-
-      const existingLog = getDailyLog(iw.date);
-      const alreadySaved = existingLog.workouts.some(
-        (w) => w.externalId === iw.sourceId && w.sourceProvider === iw.source
-      );
-      if (alreadySaved) continue;
-
-      const activeConfig = config ?? fallback;
-      const distUnit = activeConfig.distanceUnit;
-      const distanceInUnit = convertDistance(iw.distance, 'km', distUnit);
-
-      let avgSpeed: number | undefined;
-      if (iw.avgSpeedKmh && iw.avgSpeedKmh > 0) {
-        const speedInUnit = convertDistance(iw.avgSpeedKmh, 'km', distUnit);
-        avgSpeed = Math.round(speedInUnit * 100) / 100;
-      }
-
-      const workout: Workout = {
-        id: iw.id,
-        type: config ? iw.type : fallback.id,
-        distance: Math.round(distanceInUnit * 100) / 100,
-        time: iw.time,
-        elevation: iw.elevation,
-        avgSpeed,
-        laps: iw.laps,
-        sourceProvider: iw.source,
-        externalId: iw.sourceId,
-      };
-      saveWorkout(iw.date, workout);
-      savedInThisBatch.add(batchKey);
-      savedCount++;
-      console.log('[Home] Saved imported workout:', iw.date, workout.type, 'dist:', workout.distance, distUnit);
-    }
-    console.log('[Home] Batch save complete:', savedCount, 'of', imported.length, 'saved');
-  }, [workoutConfigs, getDailyLog, saveWorkout]);
-
-  const performStravaAutoSync = useCallback(async () => {
-    if (autoSyncRunning.current) return;
-    const stravaConfig = integrations?.strava;
-    if (!stravaConfig || stravaConfig.status !== 'connected') return;
-
-    const lastSync = stravaConfig.lastSyncAt;
-    if (lastSync) {
-      const hoursSince = (Date.now() - new Date(lastSync).getTime()) / (1000 * 60 * 60);
-      if (hoursSince < 12) {
-        console.log('[Home] Strava auto-sync skipped, last sync', Math.round(hoursSince), 'hours ago');
-        return;
-      }
-    }
-
-    autoSyncRunning.current = true;
-    console.log('[Home] Starting Strava auto-sync...');
-
-    try {
-      let token = stravaConfig.accessToken ?? '';
-      const refreshTk = stravaConfig.refreshToken;
-      const expiresAt = stravaConfig.tokenExpiresAt;
-
-      if (expiresAt && new Date(expiresAt) < new Date() && refreshTk) {
-        try {
-          const refreshed = await refreshStravaToken(refreshTk);
-          token = refreshed.accessToken;
-          updateIntegration('strava', {
-            accessToken: refreshed.accessToken,
-            refreshToken: refreshed.refreshToken,
-            tokenExpiresAt: new Date(refreshed.expiresAt * 1000).toISOString(),
-          });
-        } catch (refreshErr) {
-          console.warn('[Home] Strava token refresh failed:', refreshErr);
-          return;
-        }
-      }
-
-      const afterTimestamp = lastSync
-        ? Math.floor(new Date(lastSync).getTime() / 1000)
-        : Math.floor((Date.now() - 2 * 24 * 60 * 60 * 1000) / 1000);
-
-      const activities = await fetchStravaActivities(token, afterTimestamp);
-      const newWorkouts = deduplicateWorkouts(importedWorkouts, activities);
-      if (newWorkouts.length > 0) {
-        addImportedWorkouts(newWorkouts);
-        saveImportedToLogs(newWorkouts);
-        updateIntegration('strava', {
-          importedCount: (stravaConfig.importedCount ?? 0) + newWorkouts.length,
-        });
-      }
-      updateIntegration('strava', {
-        lastSyncAt: new Date().toISOString(),
-        lastSuccessfulSyncAt: new Date().toISOString(),
-        error: undefined,
-      });
-      console.log(`[Home] Strava auto-sync complete: ${newWorkouts.length} new workouts`);
-    } catch (err) {
-      console.warn('[Home] Strava auto-sync failed:', err);
-      updateIntegration('strava', {
-        error: err instanceof Error ? err.message : 'Auto-sync failed',
-      });
-    } finally {
-      autoSyncRunning.current = false;
-    }
-  }, [integrations?.strava, importedWorkouts, addImportedWorkouts, updateIntegration, saveImportedToLogs]);
 
   useEffect(() => {
     if (!dataReady || reconciliationDone.current) return;
@@ -224,16 +106,6 @@ export default function HomeScreen() {
     }
     console.log('[Home] Reconciliation complete:', savedCount, 'workouts saved to daily logs');
   }, [dataReady, importedWorkouts, workoutConfigs, getDailyLog, saveWorkout]);
-
-  useEffect(() => {
-    if (!dataReady) return;
-    const timer = setTimeout(() => performStravaAutoSync(), 3000);
-    const interval = setInterval(performStravaAutoSync, 12 * 60 * 60 * 1000);
-    return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
-    };
-  }, [dataReady, performStravaAutoSync]);
 
   const dateKey = formatDate(selectedDate);
   const dailyLog = getDailyLog(dateKey);
