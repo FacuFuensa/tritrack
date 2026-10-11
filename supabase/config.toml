@@ -23,3 +23,9 @@ verify_jwt = false
 # valida su propia clave compartida (x-tc-key). Se queda con el JWT del gateway.
 [functions.send-reminders]
 verify_jwt = true
+
+# OAuth de Strava y Whoop hecho en el servidor. El callback llega desde el
+# navegador del proveedor, sin sesión: el usuario viaja en `state`. /start y
+# /disconnect validan el JWT adentro.
+[functions.oauth]
+verify_jwt = false
