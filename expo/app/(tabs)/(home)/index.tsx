@@ -10,7 +10,8 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { Plus, Check, BarChart3, Target, Zap, Moon, Activity } from 'lucide-react-native';
+import { Plus, Check, BarChart3, Target, Zap, Moon, Activity, Settings } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import Colors from '@/constants/colors';
 import { Workout } from '@/constants/types';
 import { useTraining } from '@/providers/TrainingProvider';
@@ -49,6 +50,7 @@ export default function HomeScreen() {
     activeGoalEvent,
   } = useTraining();
 
+  const router = useRouter();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const [showWeeklySummary, setShowWeeklySummary] = useState(false);
@@ -282,6 +284,14 @@ export default function HomeScreen() {
                   testID="weekly-summary-btn"
                 >
                   <BarChart3 size={16} color={Colors.accent} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.summaryBtn, { marginLeft: 8 }]}
+                  onPress={() => router.push('/ajustes' as never)}
+                  accessibilityLabel="Ajustes"
+                  testID="ajustes-btn"
+                >
+                  <Settings size={16} color={Colors.accent} />
                 </TouchableOpacity>
               </View>
 

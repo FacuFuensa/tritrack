@@ -7,13 +7,11 @@ import { UserAccount, IntegrationConfig, IntegrationType, WhoopData, WhoopDailyM
 import type { Session } from '@supabase/supabase-js';
 
 function getAuthErrorMessage(error: string): string {
-  if (error.includes('Invalid API key')) return 'Supabase authentication key is invalid. Please update your Supabase environment variables (URL and anon key).';
-  if (error.includes('Invalid login credentials')) return 'Invalid email or password. Please try again.';
-  if (error.includes('Email not confirmed')) return 'Please check your email and confirm your account before signing in.';
-  if (error.includes('User already registered')) return 'An account with this email already exists. Try signing in instead.';
-  if (error.includes('Password should be')) return 'Password must be at least 6 characters long.';
-  if (error.includes('rate limit')) return 'Too many attempts. Please wait a moment and try again.';
-  if (error.includes('network') || error.includes('fetch')) return 'Network error. Please check your internet connection.';
+  if (error.includes('Invalid API key')) return 'La clave de Supabase de esta build es inválida.';
+  if (error.includes('Invalid login credentials')) return 'Email o contraseña incorrectos.';
+  if (error.includes('Email not confirmed')) return 'Falta confirmar el email.';
+  if (error.includes('rate limit')) return 'Demasiados intentos. Esperá un momento y probá de nuevo.';
+  if (error.includes('network') || error.includes('fetch')) return 'Sin conexión. Revisá internet y probá de nuevo.';
   return error;
 }
 

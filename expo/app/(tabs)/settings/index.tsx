@@ -42,12 +42,7 @@ export default function SettingsScreen() {
     updateWorkoutConfig,
     clearAllData,
   } = useTraining();
-  const { integrations, isSignedIn, account } = useAuth();
-
-  const connectedCount = [
-    integrations?.strava,
-    integrations?.whoop,
-  ].filter(i => i?.status === 'connected').length;
+  const { isSignedIn, account } = useAuth();
 
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
@@ -321,7 +316,7 @@ export default function SettingsScreen() {
         <GlassCard>
           <TouchableOpacity
             style={styles.settingsLinkRow}
-            onPress={() => router.push('/integrations' as never)}
+            onPress={() => router.push('/ajustes' as never)}
             activeOpacity={0.7}
             testID="settings-integrations"
           >
@@ -329,9 +324,9 @@ export default function SettingsScreen() {
               <Activity size={18} color={Colors.strava} />
             </View>
             <View style={styles.settingsLinkText}>
-              <Text style={styles.settingsLinkTitle}>Integrations</Text>
+              <Text style={styles.settingsLinkTitle}>Ajustes</Text>
               <Text style={styles.settingsLinkSubtitle}>
-                {connectedCount} connected
+                Strava, WHOOP y notificaciones
               </Text>
             </View>
             <ChevronRight size={16} color={Colors.textTertiary} />

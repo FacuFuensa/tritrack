@@ -1,4 +1,3 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -10,6 +9,7 @@ import { AuthProvider, useAuth } from "@/providers/AuthProvider";
 import { registerPushToken, addNotificationResponseListener } from "@/utils/notifications";
 import Colors from "@/constants/colors";
 import { isSupabaseConfigured } from "@/data/supabase";
+import { QueryProvider } from "@/data/QueryProvider";
 
 // Sin EXPO_PUBLIC_SUPABASE_URL / ANON_KEY la app abre directo, sin login, y
 // guarda todo en el teléfono (almacenamiento local de TrainingProvider).
@@ -17,14 +17,12 @@ const localOnly = !isSupabaseConfigured();
 
 SplashScreen.preventAutoHideAsync();
 
-const queryClient = new QueryClient();
-
 function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false, gestureEnabled: false }} />
-      <Stack.Screen name="integrations" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="ajustes" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="account" options={{ headerShown: false, presentation: 'modal' }} />
     </Stack>
   );
@@ -88,7 +86,7 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <QueryProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <AuthProvider>
           <TrainingProvider>
@@ -99,7 +97,7 @@ export default function RootLayout() {
           </TrainingProvider>
         </AuthProvider>
       </GestureHandlerRootView>
-    </QueryClientProvider>
+    </QueryProvider>
   );
 }
 
