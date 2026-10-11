@@ -1,49 +1,6 @@
-import { Link, Stack } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
-import Colors from "@/constants/colors";
-
-export default function NotFoundScreen() {
-  return (
-    <>
-      <Stack.Screen options={{ title: "Not Found" }} />
-      <View style={styles.container}>
-        <Text style={styles.emoji}>🏊🚴🏃</Text>
-        <Text style={styles.title}>Route not found</Text>
-        <Link href="/" style={styles.link}>
-          <Text style={styles.linkText}>Back to Training</Text>
-        </Link>
-      </View>
-    </>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-    backgroundColor: Colors.background,
-  },
-  emoji: {
-    fontSize: 40,
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: Colors.textPrimary,
-  },
-  link: {
-    marginTop: 20,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    backgroundColor: Colors.accent,
-  },
-  linkText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-});
+import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { SearchX } from 'lucide-react-native';
+import EmptyState from '@/components/EmptyState';
+import styles from '@/components/screenStyles';
+export default function NotFoundScreen() { return <SafeAreaView style={styles.screen}><EmptyState icon={SearchX} title="No encontramos esta pantalla" actionLabel="Ir a Hoy" onAction={() => router.replace('/hoy')} /></SafeAreaView>; }

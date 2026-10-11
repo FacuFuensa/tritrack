@@ -10,10 +10,11 @@ import { registerPushToken, addNotificationResponseListener } from "@/utils/noti
 import Colors from "@/constants/colors";
 import { isSupabaseConfigured } from "@/data/supabase";
 import { QueryProvider } from "@/data/QueryProvider";
+import { DATA_MODE } from "@/data/mode";
 
 // Sin EXPO_PUBLIC_SUPABASE_URL / ANON_KEY la app abre directo, sin login, y
 // guarda todo en el teléfono (almacenamiento local de TrainingProvider).
-const localOnly = !isSupabaseConfigured();
+const localOnly = DATA_MODE === 'mock' || !isSupabaseConfigured();
 
 SplashScreen.preventAutoHideAsync();
 
@@ -24,6 +25,10 @@ function RootLayoutNav() {
       <Stack.Screen name="login" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="ajustes" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="account" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="sesion/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="checkin" options={{ headerShown: false, presentation: 'formSheet', sheetAllowedDetents: [0.75, 1], sheetGrabberVisible: true }} />
+      <Stack.Screen name="carrera/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="trofeo/[id]" options={{ headerShown: false }} />
     </Stack>
   );
 }
@@ -50,7 +55,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     }
 
     if (currentSegment === 'login') {
-      router.replace('/(tabs)/(home)' as never);
+      router.replace('/(tabs)/hoy' as never);
     }
   }, [isSignedIn, authLoading, trainingLoading, segments, router]);
 

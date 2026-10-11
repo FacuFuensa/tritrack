@@ -1,5 +1,6 @@
 export default {
   background: '#080C1A',
+  overlay: 'rgba(0,0,0,0.6)',
   backgroundLight: '#0F1528',
   backgroundCard: 'rgba(255, 255, 255, 0.05)',
   backgroundCardHover: 'rgba(255, 255, 255, 0.08)',

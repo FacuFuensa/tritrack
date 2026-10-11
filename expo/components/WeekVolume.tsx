@@ -1,0 +1,12 @@
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import type { VolumeRow, WeekSummary } from '@/data/types';
+import Colors from '@/constants/colors';
+import { disciplineName, fmtMinutes } from '@/utils/format';
+import GlassCard from './GlassCard';
+import DisciplineDot, { disciplineColor } from './DisciplineDot';
+import common from './screenStyles';
+export default React.memo(function WeekVolume({ volume, z2Pct, week }: { volume: VolumeRow[]; z2Pct: number | null; week: WeekSummary | null }) {
+  return <GlassCard>{volume.length > 0 && <View style={common.spread}><Text style={common.label}>VOLUMEN</Text><Text style={z2Pct == null ? styles.missing : styles.z2}>{z2Pct == null ? 'Z2 sin dato' : `Z2  ${Math.round(z2Pct)} %`}</Text></View>}{volume.map(v => { const pct = v.planned > 0 ? Math.round(v.done / v.planned * 100) : null; const color = disciplineColor(v.discipline); return <View key={v.discipline} style={styles.volume}><View style={common.spread}><View style={[common.row, { gap: 6 }]}><DisciplineDot discipline={v.discipline} /><Text style={styles.name}>{disciplineName(v.discipline)}</Text></View><Text style={styles.value}>{String(v.done).replace('.', ',')} / {String(v.planned).replace('.', ',')} {v.unit}</Text></View><View style={common.row}><View style={[styles.track, { backgroundColor: color + '26' }]}><View style={[styles.fill, { backgroundColor: color, width: `${Math.min(100, pct ?? 0)}%` }]} /></View><Text style={styles.percentage}>{pct == null ? 'sin dato' : `${pct}%`}</Text></View></View>; })}{week && <Text style={[styles.summary, !volume.length && styles.onlySummary]}>{week.sessions_done} de {week.sessions_planned} sesiones · {fmtMinutes(week.minutes_planned)} planeadas</Text>}</GlassCard>;
+});
+const styles = StyleSheet.create({ z2: { color: Colors.success, fontSize: 17, fontWeight: '800' }, missing: { color: Colors.textTertiary, fontSize: 13, fontWeight: '600' }, volume: { marginTop: 16, gap: 8 }, name: { color: Colors.textPrimary, fontSize: 14, fontWeight: '600' }, value: { color: Colors.textSecondary, fontSize: 13, fontWeight: '600' }, track: { height: 6, borderRadius: 3, overflow: 'hidden', flex: 1 }, fill: { height: 6, borderRadius: 3 }, percentage: { color: Colors.textSecondary, fontSize: 12, fontWeight: '600', width: 52, textAlign: 'right' }, onlySummary: { borderTopWidth: 0, paddingTop: 0, marginTop: 0 }, summary: { borderTopWidth: 1, borderColor: Colors.cardBorder, paddingTop: 12, marginTop: 16, color: Colors.textSecondary, fontSize: 13, fontWeight: '600' } });
