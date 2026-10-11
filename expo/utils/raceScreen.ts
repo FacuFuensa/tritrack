@@ -1,3 +1,5 @@
+import { parseMarkdown, plain, type MdBlock } from './markdown.ts';
+
 /** Presentación del plan; los datos de carrera siguen viniendo de useRace. */
 export async function firstRaceDayVisit(id: string, date: string, storage: {
   getItem: (key: string) => Promise<string | null>; setItem: (key: string, value: string) => Promise<void>;
@@ -18,9 +20,18 @@ export function startCountdown(date: string, time: string | null, now: Date): st
   return minutes < 60 ? `Faltan ${minutes} min` : `Faltan ${Math.floor(minutes / 60)} h${minutes % 60 ? ` ${minutes % 60}` : ''}`;
 }
 
+// Si el coach escribió una sección "Modo día de carrera", el modo día muestra esas
+// viñetas; si no, las primeras 5 de la estrategia. Enteras y sin markdown.
 export function strategyBullets(md: string | null): string[] {
-  return (md ?? '').split('\n').filter(line => /^\s*(?:[-*+] |\d+\. )/.test(line))
-    .slice(0, 5).map(line => line.replace(/^\s*(?:[-*+] |\d+\. )/, '').replace(/\*\*/g, '').trim());
+  const blocks = parseMarkdown(md ?? '');
+  const start = blocks.findIndex(b => b.type === 'heading' && /^modo d[ií]a de carrera$/i.test(plain(b.text).trim()));
+  let scope = blocks;
+  if (start >= 0) {
+    const level = (blocks[start] as Extract<MdBlock, { type: 'heading' }>).level;
+    const end = blocks.findIndex((b, i) => i > start && b.type === 'heading' && b.level <= level);
+    scope = blocks.slice(start + 1, end < 0 ? undefined : end);
+  }
+  return scope.filter(b => b.type === 'bullet').slice(0, 5).map(b => plain((b as Extract<MdBlock, { type: 'bullet' }>).text).trim());
 }
 
 export function elevationGeometry(input: [number, number][]) {
