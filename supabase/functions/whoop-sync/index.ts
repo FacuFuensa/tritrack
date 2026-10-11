@@ -2,6 +2,7 @@
 // recovery_daily, una fila por día.
 // verify_jwt=false a nivel gateway (CORS preflight); auth adentro con getUser.
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { brokenScope } from "../_shared/connection.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -28,6 +29,8 @@ function chicagoDate(iso: string): string {
   }).format(new Date(iso));
 }
 
+class Unauthorized extends Error {}
+
 // WHOOP pagina de a 25 como máximo. Traemos todo el rango siguiendo nextToken.
 async function fetchAll(path: string, token: string, startISO: string) {
   const out: any[] = [];
@@ -38,6 +41,7 @@ async function fetchAll(path: string, token: string, startISO: string) {
     url.searchParams.set("start", startISO);
     if (next) url.searchParams.set("nextToken", next);
     const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (r.status === 401) throw new Unauthorized();
     if (!r.ok) throw new Error(`${path} ${r.status}: ${(await r.text()).slice(0, 120)}`);
     const body = await r.json();
     out.push(...(body.records ?? []));
@@ -63,6 +67,13 @@ Deno.serve(async (req: Request) => {
   const { data: tokens } = await admin.from("whoop_tokens").select("*").eq("user_id", userId).maybeSingle();
   if (!tokens) return json({ error: "not connected" }, 400);
 
+  // Refresh muerto o acceso revocado: se marca la conexión como rota (sin
+  // borrar el token) y se avisa con 409 para que la app ofrezca "Reconectar".
+  const reauth = async () => {
+    await admin.from("whoop_tokens").update({ scope: brokenScope(tokens.scope) }).eq("user_id", userId);
+    return json({ error: "reauth" }, 409);
+  };
+
   let accessToken = tokens.access_token;
 
   // WHOOP ROTA el refresh token: el de la respuesta reemplaza al anterior y el
@@ -82,6 +93,7 @@ Deno.serve(async (req: Request) => {
         scope: "offline",
       }),
     });
+    if (r.status === 400 || r.status === 401) return await reauth();
     if (!r.ok) return json({ error: "refresh failed", detail: (await r.text()).slice(0, 200) }, 502);
     const nt = await r.json();
     accessToken = nt.access_token;
@@ -103,6 +115,7 @@ Deno.serve(async (req: Request) => {
       fetchAll("/v2/cycle", accessToken, startISO),
     ]);
   } catch (e) {
+    if (e instanceof Unauthorized) return await reauth();
     return json({ error: "whoop fetch failed", detail: String(e).slice(0, 200) }, 502);
   }
 
@@ -154,6 +167,10 @@ Deno.serve(async (req: Request) => {
     const { error } = await admin.from("recovery_daily").upsert(rows, { onConflict: "user_id,date" });
     if (error) return json({ error: "upsert failed", detail: error.message }, 500);
   }
+
+  // updated_at es "la última vez que la conexión anduvo": Ajustes lo muestra
+  // como última sincronización.
+  await admin.from("whoop_tokens").update({ updated_at: new Date().toISOString() }).eq("user_id", userId);
 
   const conDatos = rows.filter(r => r.recovery_pct != null);
   return json({

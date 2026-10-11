@@ -1,19 +1,14 @@
-// Edge Function: trae actividades recientes de Strava, las matchea con las
-// sesiones planificadas y auto-marca el workout_log.
-// verify_jwt=false a nivel gateway (CORS preflight); auth adentro con getUser.
-import { createClient } from "jsr:@supabase/supabase-js@2";
-
-const cors = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status, headers: { ...cors, "Content-Type": "application/json" },
-  });
-}
+// Edge Function: trae las actividades de Strava, escribe TODAS en `activities`
+// y además sigue auto-marcando el workout_log de la PWA vieja (por ahora).
+// Auth: JWT del usuario, o x-notify-secret + {user_id} (contrato C2).
+// verify_jwt=false a nivel gateway (CORS preflight); auth adentro.
+//
+// POST {days?: number} (default 14, máx. 90) → {fetched, upserted, matched}
+// Refresh muerto o acceso revocado → 409 {error: 'reauth'} y la conexión
+// queda marcada como rota, sin borrar el token.
+import { adminClient, cors, hasNotifySecret, json, userFromJwt } from "../_shared/http.ts";
+import { brokenScope } from "../_shared/connection.ts";
+import { clampDays, toActivityRow } from "./mapping.ts";
 
 // Disciplina de cada session_id. Es lo unico que el sync necesita saber del
 // catalogo de js/plan.js: el resto (ejercicios, cues, estructura) es del front.
@@ -69,22 +64,29 @@ function pace(disc: string, distanceM: number, movingS: number) {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
-  const jwt = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
-  const admin = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
+  const admin = adminClient();
+  const body = await req.json().catch(() => ({}));
 
-  const { data: userData, error: userErr } = await admin.auth.getUser(jwt);
-  if (userErr || !userData.user) return json({ error: "unauthorized" }, 401);
-  const userId = userData.user.id;
+  const userId = hasNotifySecret(req)
+    ? (typeof body.user_id === "string" ? body.user_id : null)
+    : await userFromJwt(admin, req);
+  if (!userId) return json({ error: "unauthorized" }, 401);
+  const days = clampDays(body.days);
 
   const { data: tokens } = await admin.from("strava_tokens").select("*").eq("user_id", userId).maybeSingle();
   if (!tokens) return json({ error: "not connected" }, 400);
 
+  // Conexión rota: se marca y se avisa con 409 para que la app ofrezca
+  // "Reconectar". El token no se borra: el próximo OAuth lo pisa.
+  const reauth = async () => {
+    await admin.from("strava_tokens").update({ scope: brokenScope(tokens.scope) }).eq("user_id", userId);
+    return json({ error: "reauth" }, 409);
+  };
+
   let accessToken = tokens.access_token;
   if (tokens.expires_at <= Math.floor(Date.now() / 1000) + 60) {
     const { data: cfg } = await admin.from("strava_config").select("*").single();
+    if (!cfg) return json({ error: "no strava config" }, 500);
     const r = await fetch("https://www.strava.com/oauth/token", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -93,6 +95,8 @@ Deno.serve(async (req: Request) => {
         grant_type: "refresh_token", refresh_token: tokens.refresh_token,
       }),
     });
+    // 400/401: el refresh token ya no sirve (revocado o inválido).
+    if (r.status === 400 || r.status === 401) return await reauth();
     if (!r.ok) return json({ error: "refresh failed" }, 502);
     const nt = await r.json();
     accessToken = nt.access_token;
@@ -102,12 +106,31 @@ Deno.serve(async (req: Request) => {
     }).eq("user_id", userId);
   }
 
-  const after = Math.floor(Date.now() / 1000) - 14 * 86400;
-  const actRes = await fetch(`https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=60`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!actRes.ok) return json({ error: "activities failed" }, 502);
-  const activities = await actRes.json();
+  // Strava pagina de a 200 como máximo; 90 días pueden ser más.
+  const after = Math.floor(Date.now() / 1000) - days * 86400;
+  // deno-lint-ignore no-explicit-any
+  const activities: any[] = [];
+  for (let page = 1; page <= 10; page++) {
+    const actRes = await fetch(
+      `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=200&page=${page}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (actRes.status === 401) return await reauth();
+    if (!actRes.ok) return json({ error: "activities failed" }, 502);
+    const batch = await actRes.json();
+    activities.push(...batch);
+    if (batch.length < 200) break;
+  }
+
+  // Todas las actividades a `activities`, sin filtrar por disciplina.
+  let upserted = 0;
+  if (activities.length) {
+    const rows = activities.map((a) => toActivityRow(userId, a));
+    const { error } = await admin.from("activities")
+      .upsert(rows, { onConflict: "user_id,source,external_id" });
+    if (error) return json({ error: "upsert failed", detail: error.message }, 500);
+    upserted = rows.length;
+  }
 
   // Sesiones que el usuario desmarcó a mano ("Deshacer" sobre una que registró
   // Strava). Sin esto el sync las vuelve a marcar en la próxima pasada y el
@@ -141,6 +164,7 @@ Deno.serve(async (req: Request) => {
 
   const usedByDate: Record<string, Set<string>> = {};
   let matched = 0;
+  // deno-lint-ignore no-explicit-any
   const recent: any[] = [];
 
   for (const a of activities) {
@@ -180,5 +204,9 @@ Deno.serve(async (req: Request) => {
     if (!error) matched++;
   }
 
-  return json({ matched, recent: recent.slice(0, 20) });
+  // updated_at es "la última vez que la conexión anduvo": Ajustes lo muestra
+  // como última sincronización.
+  await admin.from("strava_tokens").update({ updated_at: new Date().toISOString() }).eq("user_id", userId);
+
+  return json({ fetched: activities.length, upserted, matched, recent: recent.slice(0, 20) });
 });
