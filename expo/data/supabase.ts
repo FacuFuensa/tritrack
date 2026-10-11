@@ -4,11 +4,14 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, Platform } from 'react-native';
 import type { Database } from './database.types';
+import { DATA_MODE } from './mode';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
-const hasCredentials = Boolean(supabaseUrl && supabaseAnonKey);
+// En modo mock no se habla con Supabase aunque haya credenciales: la app abre
+// sin login y los hooks leen de data/mocks/.
+const hasCredentials = Boolean(supabaseUrl && supabaseAnonKey) && DATA_MODE !== 'mock';
 
 const NETWORK_RETRY_DELAY_MS = 450;
 
