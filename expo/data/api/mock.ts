@@ -27,6 +27,13 @@ export const mockApi: DataApi = {
     await delay(null);
   },
 
+  async moveSession(id, date) {
+    const s = sc.sessions.find((x) => x.id === id);
+    if (!s) throw new Error('Sesión inexistente');
+    s.date = date;
+    await delay(null);
+  },
+
   async insertCheckin(input) {
     sc.checkins.push({
       id: `chk-${sc.checkins.length + 1}`,

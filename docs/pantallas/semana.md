@@ -22,7 +22,7 @@ estaba en History).
 const [monday, setMonday] = useState(params.lunes ?? mondayOf(todayLocal()));
 const week = useWeek(monday);
 const history = useWeekHistory();
-const { accept, requestChanges } = useWeekActions();
+const { accept, requestChanges, moveSession } = useWeekActions();
 ```
 
 | Elemento | Campo |
@@ -109,7 +109,7 @@ día: **L M X J V S D**.
 | `status === 'changes_requested'` | Tarjeta con borde `warning`: **"PEDISTE CAMBIOS"**, la cita del `feedback` en itálica, y **"El coach va a rehacer la semana."** Sin botones |
 | `z2Pct === null` | **"Z2 sin dato"** 13/600 `textTertiary` |
 | `volume` vacío | La tarjeta de volumen muestra solo la línea de cumplimiento |
-| Día sin sesiones | No tiene cabecera en la lista |
+| Día sin sesiones | No tiene cabecera en la lista (salvo mientras arrastrás una sesión: ahí aparece con **"Soltalo acá"**) |
 | `history.data` vacío | La sección "SEMANAS ANTERIORES" no va |
 | `history` con error | La sección no va (no tapa el resto) |
 
@@ -121,6 +121,7 @@ día: **L M X J V S D**.
 | "Hoy" | Vuelve a `mondayOf(todayLocal())` |
 | Un día de la tira | Hace scroll hasta la cabecera de ese día (si no tiene sesiones, no hace nada) |
 | `SessionCard` | `/sesion/<id>` |
+| Mantener apretada una `SessionCard` pendiente y arrastrarla | La tarjeta se levanta (haptic `Medium`) y sigue al dedo; el día de destino se resalta y aparecen los días vacíos. Cerca de los bordes la lista se desplaza sola. Al soltar en otro día: `await moveSession(id, fecha)` (optimista). Error → **"No se pudo mover el entrenamiento. Probá de nuevo."** arriba de la lista y la sesión vuelve a su día. Las sesiones hechas o salteadas no se mueven; solo dentro de la misma semana |
 | "Leer todo ▾" | Despliega el briefing completo; cambia a **"Leer menos ▴"** |
 | **Aceptar** | `await accept(week.id)`; botón con `loading`; al terminar, haptic `Success` y la tarjeta pasa a "BRIEFING". Error → texto rojo debajo: **"No se pudo aceptar. Probá de nuevo."** |
 | **Pedir cambios** | Abre `BottomSheet` "Pedir cambios" con `TextInput` multilínea (placeholder **"Qué querés que cambie: días, volumen, una sesión…"**, mínimo 5 caracteres) y `PrimaryButton` **"Mandar"** → `await requestChanges(week.id, texto)`, cierra la hoja. Error → **"No se pudo mandar. Probá de nuevo."** dentro de la hoja |
@@ -137,7 +138,7 @@ rehacer la semana.** · **Leer todo ▾** · **Leer menos ▴** · **Aceptar** �
 nombres de disciplina de `disciplineName` · unidades **m**, **km**, **ses** ·
 **<DÍA> <n>** y **· HOY** · **SEMANAS ANTERIORES** · **Semana <n> · <rango>** ·
 **<hechas> de <planeadas> ✓** · **No hay plan para esta semana** · **Si es
-domingo, el coach todavía no la escribió.** · errores de arriba.
+domingo, el coach todavía no la escribió.** · **Soltalo acá** · errores de arriba.
 
 Rango: `12 – 18 oct`; si cruza de mes, `28 sep – 4 oct`.
 
@@ -151,4 +152,5 @@ Rango: `12 – 18 oct`; si cruza de mes, `28 sep – 4 oct`.
       `‹` otra vez muestra "No hay plan para esta semana".
 - [ ] "SEMANAS ANTERIORES" lista la semana 5 y tocándola navega.
 - [ ] Los puntos de la tira coinciden con las sesiones de cada día.
+- [ ] Mantener apretada "Cuestas cortas" (martes) y soltarla en el miércoles la deja ahí; soltar en un día vacío también funciona; un toque corto sigue abriendo la sesión.
 - [ ] Capturas: propuesta, aceptada, cambios pedidos, semana vacía, sin conexión.
