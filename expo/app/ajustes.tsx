@@ -173,7 +173,7 @@ export default function AjustesScreen() {
           <ChevronLeft size={22} color={Colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Ajustes</Text>
-        <View style={styles.backBtn} />
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView
@@ -228,6 +228,7 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center',
   },
+  headerSpacer: { width: 40, height: 40 },
   headerTitle: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, letterSpacing: 0.3 },
   sectionLabel: {
     fontSize: 11, fontWeight: '700', color: Colors.textTertiary, letterSpacing: 2,
