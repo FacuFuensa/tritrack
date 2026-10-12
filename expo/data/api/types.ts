@@ -16,6 +16,8 @@ export interface DataApi {
   races(): Promise<Race[]>;
 
   setWeekStatus(weekId: string, status: WeekStatus, feedback?: string): Promise<void>;
+  /** Mueve una sesión a otro día (el usuario la arrastra en Semana). */
+  moveSession(id: string, date: string): Promise<void>;
   insertCheckin(input: CheckinInput): Promise<void>;
   updateRace(id: string, patch: { status?: RaceStatus; result?: RaceResult; medal_path?: string }): Promise<void>;
   /** Sube la foto a medallas/<user_id>/<race_id>.png y devuelve la ruta. */

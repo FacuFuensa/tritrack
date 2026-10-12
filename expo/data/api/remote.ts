@@ -127,6 +127,10 @@ export const remoteApi: DataApi = {
     check(await supabase.from('plan_weeks').update(patch).eq('id', weekId));
   },
 
+  async moveSession(id, date) {
+    check(await supabase.from('plan_sessions').update({ date }).eq('id', id));
+  },
+
   async insertCheckin(input) {
     check(await supabase.from('checkins').insert({
       user_id: await userId(),
