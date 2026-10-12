@@ -11,7 +11,7 @@ import { useTrophies } from '@/data/useTrophies';
 import { useRaceActions } from '@/data/useRaceActions';
 import type { Race } from '@/data/types';
 import { fmtDate, fmtDuration, raceKindName } from '@/utils/format';
-import { editionDifference, splitNames } from '@/utils/trophies';
+import { activityLabels, editionDifference, splitLayout, splitNames } from '@/utils/trophies';
 import EmptyState from '@/components/EmptyState';
 import ErrorState from '@/components/ErrorState';
 import OfflineBanner from '@/components/OfflineBanner';
@@ -61,7 +61,9 @@ export default function Trofeo() {
   const editions = race && trophies.data?.medals.filter(r => r.name === race.name && r.id !== race.id) || [];
   const allEditions = race && editions.length ? [...editions, race].sort((a, b) => a.date.localeCompare(b.date)) : [];
   const pr = trophies.data?.prs.some(p => p.race_id === race?.id);
-  const pulse = (['swim', 'bike', 'run'] as const).filter(k => result?.hr_by_segment?.[k] != null && !result.cancelled?.includes(k));
+  const triathlon = !!race?.kind.startsWith('tri_');
+  const legs = triathlon && result ? splitLayout(result).filter(p => p.state !== 'sin_dato') : [];
+  const links = race ? activityLabels(result ?? null, triathlon, race.activity_ids.length) : [];
   const rank = (position: number, field?: number) => `${position}${field != null ? ` de ${field}` : ''}`;
   function editionDelta(other: Race) {
     if (other.id === race?.id) return <Text style={styles.muted}>esta</Text>;
@@ -75,10 +77,10 @@ export default function Trofeo() {
     {isLoading && !race ? <><View style={styles.hero}><Skeleton height={220} width={220} radius={110} /></View><View style={[shared.inset, styles.skeleton]}><Skeleton height={30} /><Skeleton height={20} /><Skeleton height={160} /></View></> : error && !race ? <ErrorState onRetry={() => void refetch()} /> : race === null ? <EmptyState icon={SearchX} title="No encontramos este trofeo" actionLabel="Ir a Trofeos" onAction={() => router.replace('/trofeos')} /> : race && race.status !== 'done' ? <EmptyState icon={SearchX} title="Esta carrera todavía no se corrió" actionLabel="Ver la carrera" onAction={() => router.replace(`/carrera/${race.id}`)} /> : race && <>
       <View style={styles.hero}><MedalTilt uri={race.medal_url} cacheKey={race.medal_path} kind={race.kind} /></View>
       <View style={styles.heading}><Text style={styles.eyebrow}>{[raceKindName(race.kind), race.location].filter(Boolean).join(' · ').toUpperCase()}</Text><Text style={styles.title}>{race.name}</Text><Text style={styles.date}>{fmtDate(race.date)} {race.date.slice(0, 4)}</Text>{pr && <Text style={styles.pr}>Récord personal</Text>}</View>
-      <GlassCard><Text style={shared.label}>TIEMPO TOTAL</Text><Text style={[styles.total, result?.total_s == null && styles.missing]}>{fmtDuration(result?.total_s ?? null)}</Text>{!result && <Text style={shared.secondary}>Cargalo desde Trofeos → Cargar un resultado viejo.</Text>}{race.kind.startsWith('tri_') && result && <SplitBar result={result} />}</GlassCard>
+      <GlassCard><Text style={shared.label}>TIEMPO TOTAL</Text><Text style={[styles.total, result?.total_s == null && styles.missing]}>{fmtDuration(result?.total_s ?? null)}</Text>{!result && <Text style={shared.secondary}>Cargalo desde Trofeos → Cargar un resultado viejo.</Text>}{triathlon && result && <SplitBar result={result} legend={false} />}</GlassCard>
       {result && (result.rank_overall != null || result.rank_division != null) && <GlassCard><Text style={styles.cardLabel}>PUESTOS</Text>{result.rank_overall != null && <View style={styles.row}><Text style={styles.rowLabel}>General</Text><Text style={styles.value}>{rank(result.rank_overall, result.field_overall)}</Text></View>}{result.rank_division != null && <View style={styles.row}><Text style={styles.rowLabel}>{result.division || 'Categoría'}</Text><Text style={styles.value}>{rank(result.rank_division, result.field_division)}</Text></View>}</GlassCard>}
-      {!!pulse.length && <GlassCard><Text style={styles.cardLabel}>PULSO POR TRAMO</Text>{pulse.map(k => <View key={k} style={styles.row}><Text style={styles.rowLabel}><Text style={{ color: splitColors[k] }}>● </Text>{splitNames[k]}</Text><Text style={styles.value}>{result!.hr_by_segment![k]} <Text style={styles.muted}>lpm</Text></Text></View>)}</GlassCard>}
-      {!!race.activity_ids.length && <GlassCard>{race.activity_ids.map((activityId, i) => <Pressable key={activityId} accessibilityRole="link" onPress={() => { setLinkError(false); void openStrava(activityId).catch(() => setLinkError(true)); }} style={styles.row}><ExternalLink size={18} color={Colors.accent} /><Text style={[shared.action, shared.flex]}>{race.activity_ids.length === 1 ? 'Ver en Strava' : `Actividad ${i + 1}`}</Text></Pressable>)}{linkError && <Text style={shared.error}>No pudimos abrir Strava</Text>}</GlassCard>}
+      {!!legs.length && <GlassCard><Text style={styles.cardLabel}>TRAMOS</Text>{legs.map(p => <View key={p.key} style={styles.row}><Text style={styles.rowLabel}><Text style={{ color: splitColors[p.key] }}>● </Text>{splitNames[p.key]}</Text>{p.state === 'suspendido' ? <Text style={[styles.value, { color: Colors.warning }]}>{p.key === 'bike' ? 'suspendida' : 'suspendido'}</Text> : <Text style={styles.value}>{fmtDuration(p.seconds)}</Text>}</View>)}</GlassCard>}
+      {!!race.activity_ids.length && <GlassCard>{race.activity_ids.map((activityId, i) => <Pressable key={activityId} accessibilityRole="link" onPress={() => { setLinkError(false); void openStrava(activityId).catch(() => setLinkError(true)); }} style={styles.row}><ExternalLink size={18} color={Colors.accent} /><Text style={[shared.action, shared.flex]}>{links[i]}</Text></Pressable>)}{linkError && <Text style={shared.error}>No pudimos abrir Strava</Text>}</GlassCard>}
       {trophies.isLoading && !trophies.data && <View style={shared.inset}><Skeleton height={80} /></View>}
       {trophies.error && !trophies.data && <ErrorState onRetry={() => void trophies.refetch()} />}
       {!!allEditions.length && <><Text style={shared.section}>OTRAS EDICIONES</Text><GlassCard>{allEditions.map(other => <Pressable key={other.id} accessibilityRole="button" accessibilityLabel={`Edición ${other.date.slice(0, 4)}`} disabled={other.id === race.id} onPress={() => router.replace(`/trofeo/${other.id}`)} style={styles.row}><Text style={styles.edition}>{other.date.slice(0, 4)}</Text><Text style={styles.edition}>{fmtDuration(other.result?.total_s ?? null)}</Text>{editionDelta(other)}</Pressable>)}</GlassCard></>}
