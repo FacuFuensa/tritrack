@@ -14,7 +14,6 @@ import EmptyState from '@/components/EmptyState';
 import OfflineBanner from '@/components/OfflineBanner';
 import StatusBanner from '@/components/StatusBanner';
 import GlassCard from '@/components/GlassCard';
-import RecoveryCard from '@/components/RecoveryCard';
 import Countdown from '@/components/Countdown';
 import SessionCard from '@/components/SessionCard';
 import styles from '@/components/screenStyles';
@@ -27,7 +26,6 @@ export default function Hoy() {
       {data.missingWeek && <StatusBanner tone="warning" title="La semana no llegó" body={'Abrí el coach y decí "domingo". Mientras tanto, entrená igual: lo que subas a Strava queda guardado.'} />}
       {data.proposedWeek && <StatusBanner tone="info" title="Tu semana está lista" body={firstLine(data.proposedWeek.briefing_md) || 'El coach dejó la semana propuesta.'} actionLabel="Ver la semana" onAction={() => router.push('/semana')} />}
       {data.nextRace && <Pressable accessibilityRole="button" accessibilityLabel={data.nextRace.name} onPress={() => router.push(`/carrera/${data.nextRace!.id}`)}><GlassCard><View style={styles.spread}><View style={styles.flex}><Text style={styles.label}>PRÓXIMA CARRERA{data.nextRace.priority ? ` · ${data.nextRace.priority}` : ''}</Text><Text style={[styles.title, { marginTop: 8 }]}>{data.nextRace.name}</Text><Text style={[styles.secondary, { marginTop: 6 }]}>{raceKindName(data.nextRace.kind)}</Text></View><Countdown days={data.nextRace.days_to} /></View></GlassCard></Pressable>}
-      <RecoveryCard recovery={data.recovery} today={data.date} />
       <Text style={styles.section}>ENTRENAMIENTO DE HOY</Text>
       {data.sessions.length ? data.sessions.map(s => <SessionCard key={s.id} session={s} onPress={() => router.push(`/sesion/${s.id}`)} onCheckin={() => router.push({ pathname: '/checkin', params: { session: s.id } })} />) : <EmptyState icon={data.missingWeek ? CalendarX : Coffee} title={data.missingWeek ? 'Sin plan para hoy' : 'Hoy es descanso'} body={data.missingWeek ? undefined : 'No hay nada planeado. Si salís igual, Strava lo registra.'} />}
     </>}
