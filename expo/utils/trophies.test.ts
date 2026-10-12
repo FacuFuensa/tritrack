@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseTime, buildManualResult, editionDifference, splitLayout, tiltStep, TILT_MAX } from './trophies.ts';
+import { parseTime, buildManualResult, editionDifference, splitLayout, tiltStep, TILT_MAX, activityLabels } from './trophies.ts';
+
+test('links a Strava: un tramo por actividad, en orden de carrera', () => {
+  const waco = { total_s: 22260, splits: { bike_s: 12855, t2_s: 392, run_s: 9013 }, cancelled: ['swim' as const], source: 'x' };
+  assert.deepEqual(activityLabels(waco, true, 3), ['Bici', 'T2', 'Trote']);
+  assert.deepEqual(activityLabels(waco, true, 2), ['Actividad 1', 'Actividad 2']);
+  assert.deepEqual(activityLabels(null, false, 1), ['Ver en Strava']);
+});
 
 test('tiempos manuales vacíos, válidos e inválidos', () => {
   assert.equal(parseTime(['', '', '']), null);

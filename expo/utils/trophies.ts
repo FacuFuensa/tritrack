@@ -59,6 +59,15 @@ export function splitLayout(result: RaceResult) {
   return parts.map(p => ({ ...p, width: p.state === 'suspendido' ? 12 : sum ? (p.seconds ?? 0) / sum * available : 0 }));
 }
 
+// Nombres de los links a Strava: en un triatlón, las actividades se guardan en
+// el orden de la carrera, una por tramo con tiempo (Waco: bici, T2, trote). Si
+// la cuenta no cierra, no adivinamos.
+export function activityLabels(result: RaceResult | null, triathlon: boolean, count: number): string[] {
+  if (count === 1) return ['Ver en Strava'];
+  const legs = triathlon && result ? splitLayout(result).filter(p => p.state === 'ok').map(p => splitNames[p.key]) : [];
+  return legs.length === count ? legs : Array.from({ length: count }, (_, i) => `Actividad ${i + 1}`);
+}
+
 export function editionDifference(current: RaceResult | null, other: RaceResult | null): number | null {
   if (current?.total_s == null || other?.total_s == null || current.cancelled?.length || other.cancelled?.length) return null;
   return other.total_s - current.total_s;
