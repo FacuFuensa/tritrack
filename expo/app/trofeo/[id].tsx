@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Pressable, Text, View, ScrollView, RefreshControl, StyleSheet, Linking } from 'react-native';
+import { Pressable, Text, View, ScrollView, RefreshControl, StyleSheet, Linking, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SearchX, ExternalLink } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as WebBrowser from 'expo-web-browser';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useRace } from '@/data/useRace';
@@ -22,6 +21,16 @@ import MedalTilt from '@/components/MedalTilt';
 import SplitBar, { splitColors } from '@/components/SplitBar';
 import SecondaryButton from '@/components/SecondaryButton';
 import shared from '@/components/screenStyles';
+
+// Abre la actividad en la app de Strava; si no está instalada, el link web
+// (que en iOS también abre la app si aparece después).
+async function openStrava(activityId: string) {
+  const id = encodeURIComponent(activityId);
+  const web = `https://www.strava.com/activities/${id}`;
+  if (Platform.OS === 'web') { await Linking.openURL(web); return; }
+  try { await Linking.openURL(`strava://activities/${id}`); }
+  catch { await Linking.openURL(web); }
+}
 
 export default function Trofeo() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -64,12 +73,12 @@ export default function Trofeo() {
     <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={() => router.canGoBack() ? router.back() : router.replace('/trofeos')} style={shared.inset}><Text style={shared.action}>‹ Volver</Text></Pressable>
     {((error && race) || (trophies.error && trophies.data)) && <OfflineBanner />}
     {isLoading && !race ? <><View style={styles.hero}><Skeleton height={220} width={220} radius={110} /></View><View style={[shared.inset, styles.skeleton]}><Skeleton height={30} /><Skeleton height={20} /><Skeleton height={160} /></View></> : error && !race ? <ErrorState onRetry={() => void refetch()} /> : race === null ? <EmptyState icon={SearchX} title="No encontramos este trofeo" actionLabel="Ir a Trofeos" onAction={() => router.replace('/trofeos')} /> : race && race.status !== 'done' ? <EmptyState icon={SearchX} title="Esta carrera todavía no se corrió" actionLabel="Ver la carrera" onAction={() => router.replace(`/carrera/${race.id}`)} /> : race && <>
-      <View style={styles.hero}><MedalTilt uri={race.medal_url} kind={race.kind} /></View>
+      <View style={styles.hero}><MedalTilt uri={race.medal_url} cacheKey={race.medal_path} kind={race.kind} /></View>
       <View style={styles.heading}><Text style={styles.eyebrow}>{[raceKindName(race.kind), race.location].filter(Boolean).join(' · ').toUpperCase()}</Text><Text style={styles.title}>{race.name}</Text><Text style={styles.date}>{fmtDate(race.date)} {race.date.slice(0, 4)}</Text>{pr && <Text style={styles.pr}>Récord personal</Text>}</View>
       <GlassCard><Text style={shared.label}>TIEMPO TOTAL</Text><Text style={[styles.total, result?.total_s == null && styles.missing]}>{fmtDuration(result?.total_s ?? null)}</Text>{!result && <Text style={shared.secondary}>Cargalo desde Trofeos → Cargar un resultado viejo.</Text>}{race.kind.startsWith('tri_') && result && <SplitBar result={result} />}</GlassCard>
       {result && (result.rank_overall != null || result.rank_division != null) && <GlassCard><Text style={styles.cardLabel}>PUESTOS</Text>{result.rank_overall != null && <View style={styles.row}><Text style={styles.rowLabel}>General</Text><Text style={styles.value}>{rank(result.rank_overall, result.field_overall)}</Text></View>}{result.rank_division != null && <View style={styles.row}><Text style={styles.rowLabel}>{result.division || 'Categoría'}</Text><Text style={styles.value}>{rank(result.rank_division, result.field_division)}</Text></View>}</GlassCard>}
       {!!pulse.length && <GlassCard><Text style={styles.cardLabel}>PULSO POR TRAMO</Text>{pulse.map(k => <View key={k} style={styles.row}><Text style={styles.rowLabel}><Text style={{ color: splitColors[k] }}>● </Text>{splitNames[k]}</Text><Text style={styles.value}>{result!.hr_by_segment![k]} <Text style={styles.muted}>lpm</Text></Text></View>)}</GlassCard>}
-      {!!race.activity_ids.length && <GlassCard>{race.activity_ids.map((activityId, i) => <Pressable key={activityId} accessibilityRole="link" onPress={() => { setLinkError(false); void WebBrowser.openBrowserAsync(`https://www.strava.com/activities/${encodeURIComponent(activityId)}`).catch(() => setLinkError(true)); }} style={styles.row}><ExternalLink size={18} color={Colors.accent} /><Text style={[shared.action, shared.flex]}>{race.activity_ids.length === 1 ? 'Ver en Strava' : `Actividad ${i + 1}`}</Text></Pressable>)}{linkError && <Text style={shared.error}>No pudimos cargar esto</Text>}</GlassCard>}
+      {!!race.activity_ids.length && <GlassCard>{race.activity_ids.map((activityId, i) => <Pressable key={activityId} accessibilityRole="link" onPress={() => { setLinkError(false); void openStrava(activityId).catch(() => setLinkError(true)); }} style={styles.row}><ExternalLink size={18} color={Colors.accent} /><Text style={[shared.action, shared.flex]}>{race.activity_ids.length === 1 ? 'Ver en Strava' : `Actividad ${i + 1}`}</Text></Pressable>)}{linkError && <Text style={shared.error}>No pudimos abrir Strava</Text>}</GlassCard>}
       {trophies.isLoading && !trophies.data && <View style={shared.inset}><Skeleton height={80} /></View>}
       {trophies.error && !trophies.data && <ErrorState onRetry={() => void trophies.refetch()} />}
       {!!allEditions.length && <><Text style={shared.section}>OTRAS EDICIONES</Text><GlassCard>{allEditions.map(other => <Pressable key={other.id} accessibilityRole="button" accessibilityLabel={`Edición ${other.date.slice(0, 4)}`} disabled={other.id === race.id} onPress={() => router.replace(`/trofeo/${other.id}`)} style={styles.row}><Text style={styles.edition}>{other.date.slice(0, 4)}</Text><Text style={styles.edition}>{fmtDuration(other.result?.total_s ?? null)}</Text>{editionDelta(other)}</Pressable>)}</GlassCard></>}

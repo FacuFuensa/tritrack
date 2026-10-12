@@ -13,7 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Trash2, Plus, X, ChevronRight, Calendar, Minus, Zap, Heart, Activity, Cloud, User, Bell } from 'lucide-react-native';
+import { Trash2, Plus, X, ChevronRight, Calendar, Minus, Zap, Heart, Activity, Cloud, User } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { WorkoutConfig } from '@/constants/types';
 import { useTraining } from '@/providers/TrainingProvider';
@@ -352,23 +352,6 @@ export default function SettingsScreen() {
             <ChevronRight size={16} color={Colors.textTertiary} />
           </TouchableOpacity>
 
-          <View style={styles.settingsLinkDivider} />
-
-          <TouchableOpacity
-            style={styles.settingsLinkRow}
-            onPress={() => router.push('/ajustes' as never)}
-            activeOpacity={0.7}
-            testID="settings-notifications"
-          >
-            <View style={[styles.settingsLinkIcon, { backgroundColor: Colors.accent + '15' }]}>
-              <Bell size={18} color={Colors.accent} />
-            </View>
-            <View style={styles.settingsLinkText}>
-              <Text style={styles.settingsLinkTitle}>Notificaciones</Text>
-              <Text style={styles.settingsLinkSubtitle}>Probar notificación, en Ajustes</Text>
-            </View>
-            <ChevronRight size={16} color={Colors.textTertiary} />
-          </TouchableOpacity>
         </GlassCard>
 
         <Text style={styles.sectionTitle}>DATA</Text>
