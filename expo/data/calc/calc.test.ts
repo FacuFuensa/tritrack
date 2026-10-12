@@ -128,6 +128,12 @@ test('historial: semanas anteriores, la más reciente primero', () => {
   assert.equal(h[0].sessions_done, 1);
 });
 
+test('historial: las semanas de un bloque viejo no aparecen', () => {
+  const old = { ...sc.weeks[0], id: 'wk-old', block_id: 'blk-viejo', monday: addDays(sc.weeks[0].monday, -7) };
+  const h = composeHistory(TODAY, { ...sc, weeks: [...sc.weeks, old] });
+  assert.deepEqual(h.map((w) => w.id), ['wk-prev']);
+});
+
 test('todayWeekState: proposed de la semana que viene también avisa', () => {
   const next = { ...sc.weeks[1], id: 'n', monday: addDays(mondayOf(TODAY), 7) };
   const accepted = { ...sc.weeks[1], status: 'accepted' as const };

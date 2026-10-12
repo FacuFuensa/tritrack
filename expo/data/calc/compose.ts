@@ -54,11 +54,13 @@ export function composeWeek(monday: string, rows: PlanRows): WeekData {
   };
 }
 
-/** Semanas anteriores a `today`, la más reciente primero. */
+/** Semanas anteriores a `today` del bloque activo, la más reciente primero.
+ *  Las de bloques viejos no van: el coach las carga como memoria, pero nunca
+ *  se cruzaron con Strava y saldrían todas en "0 de N". */
 export function composeHistory(today: string, rows: Pick<PlanRows, 'weeks' | 'sessions' | 'block'>) {
   const current = mondayOf(today);
   return rows.weeks
-    .filter((w) => w.monday < current)
+    .filter((w) => w.monday < current && (!rows.block || w.block_id === rows.block.id))
     .sort((a, b) => b.monday.localeCompare(a.monday))
     .map((w) => summarizeWeek(w, rows.sessions, rows.block?.name ?? null));
 }
