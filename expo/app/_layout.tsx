@@ -1,13 +1,12 @@
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { TrainingProvider, useTraining } from "@/providers/TrainingProvider";
 import { AuthProvider, useAuth } from "@/providers/AuthProvider";
 import { registerPushToken, addNotificationResponseListener } from "@/utils/notifications";
-import Colors from "@/constants/colors";
+import BootScreen from "@/components/BootScreen";
 import { isSupabaseConfigured } from "@/data/supabase";
 import { QueryProvider } from "@/data/QueryProvider";
 import { DATA_MODE } from "@/data/mode";
@@ -74,22 +73,21 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     return () => subscription.remove();
   }, []);
 
-  if (authLoading || trainingLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.accent} />
-      </View>
-    );
-  }
+  // Mientras carga, la app se arma debajo de la pantalla de carga; esta se va
+  // recién cuando todo está listo (ver BootScreen).
+  const ready = !authLoading && !trainingLoading;
+  const [booting, setBooting] = useState(true);
+  const finishBoot = useCallback(() => setBooting(false), []);
 
-  return <>{children}</>;
+  return (
+    <>
+      {ready && children}
+      {booting && <BootScreen authReady={ready} needsData={isSignedIn || localOnly} onDone={finishBoot} />}
+    </>
+  );
 }
 
 export default function RootLayout() {
-  useEffect(() => {
-    SplashScreen.hideAsync();
-  }, []);
-
   return (
     <QueryProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -105,12 +103,3 @@ export default function RootLayout() {
     </QueryProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center' as const,
-    alignItems: 'center' as const,
-    backgroundColor: Colors.background,
-  },
-});

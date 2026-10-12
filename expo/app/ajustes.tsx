@@ -1,4 +1,4 @@
-// Ajustes: conexiones con Strava y Whoop, prueba de notificaciones y la
+// Ajustes: conexiones con Strava y Whoop y la
 // cuenta. Reemplaza a la vieja pantalla de integraciones.
 import React, { useCallback, useState } from 'react';
 import {
@@ -15,13 +15,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Bell, ChevronLeft, LogOut, RefreshCw, Unlink, Link2, AlertTriangle } from 'lucide-react-native';
+import { ChevronLeft, LogOut, RefreshCw, Unlink, Link2, AlertTriangle } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import GlassCard from '@/components/GlassCard';
 import { useAuth } from '@/providers/AuthProvider';
 import { useConnections, type Conn, type Provider } from '@/data/useConnections';
-import { callFunction } from '@/data/functions';
-import { registerPushToken } from '@/utils/notifications';
 
 const PROVIDERS: { key: Provider; name: string; description: string; color: string }[] = [
   { key: 'strava', name: 'Strava', description: 'Tus actividades: nado, bici, trote y gym.', color: Colors.strava },
@@ -140,7 +138,6 @@ export default function AjustesScreen() {
   const { account, signOut } = useAuth();
   const conns = useConnections();
   const [busy, setBusy] = useState<Record<Provider, Busy>>({ strava: null, whoop: null });
-  const [testing, setTesting] = useState(false);
 
   const run = useCallback(async (p: Provider, kind: Exclude<Busy, null>, fn: () => Promise<unknown>) => {
     setBusy((b) => ({ ...b, [p]: kind }));
@@ -161,29 +158,6 @@ export default function AjustesScreen() {
       { text: 'Desconectar', style: 'destructive', onPress: () => run(p, 'disconnect', () => conns.disconnect(p)) },
     ]);
   }, [conns, run]);
-
-  const testNotification = useCallback(async () => {
-    if (!account) return;
-    setTesting(true);
-    try {
-      // Asegura el permiso y el token antes de mandar.
-      const token = await registerPushToken(account.id);
-      if (!token) {
-        Alert.alert('Sin permiso', 'Activá las notificaciones en Ajustes del iPhone → TriTrack → Notificaciones.');
-        return;
-      }
-      const { sent } = await callFunction<{ sent: number }>('notify', {
-        title: 'TriTrack',
-        body: 'Las notificaciones andan. 🏊🚴🏃',
-        url: 'tritrack://hoy',
-      });
-      if (!sent) Alert.alert('No salió', 'Expo no aceptó la notificación. Revisá la clave push de Apple.');
-    } catch {
-      Alert.alert('No salió', 'No se pudo mandar la notificación de prueba.');
-    } finally {
-      setTesting(false);
-    }
-  }, [account]);
 
   const confirmSignOut = useCallback(() => {
     Alert.alert('Cerrar sesión', '¿Seguro? Vas a tener que volver a iniciar sesión.', [
@@ -231,17 +205,6 @@ export default function AjustesScreen() {
             ))}
           </>
         )}
-
-        <Text style={styles.sectionLabel}>NOTIFICACIONES</Text>
-        <GlassCard>
-          <Text style={styles.cardDesc}>
-            Te avisamos cuando la semana está lista y después de cada entrenamiento.
-          </Text>
-          <View style={styles.actions}>
-            <ActionButton label="Probar notificación" icon={Bell} color={Colors.accent}
-              loading={testing} disabled={testing} onPress={testNotification} />
-          </View>
-        </GlassCard>
 
         <Text style={styles.sectionLabel}>CUENTA</Text>
         <GlassCard>
