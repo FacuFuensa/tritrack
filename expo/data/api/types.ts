@@ -22,4 +22,6 @@ export interface DataApi {
   updateRace(id: string, patch: { status?: RaceStatus; result?: RaceResult; medal_path?: string }): Promise<void>;
   /** Sube la foto a medallas/<user_id>/<race_id>.png y devuelve la ruta. */
   uploadMedal(raceId: string, localUri: string): Promise<string>;
+  /** Sube el audio de un check-in a checkins-audio/<user_id>/… y devuelve la ruta. */
+  uploadCheckinAudio(localUri: string): Promise<string>;
 }

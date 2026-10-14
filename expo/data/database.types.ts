@@ -71,6 +71,8 @@ export type Database = {
       checkins: {
         Row: {
           activity_id: string | null
+          audio_path: string | null
+          audio_s: number | null
           created_at: string
           date: string
           energia: number | null
@@ -80,10 +82,13 @@ export type Database = {
           nutricion: Json | null
           rpe: number | null
           session_id: string | null
+          transcripcion: string | null
           user_id: string
         }
         Insert: {
           activity_id?: string | null
+          audio_path?: string | null
+          audio_s?: number | null
           created_at?: string
           date: string
           energia?: number | null
@@ -93,10 +98,13 @@ export type Database = {
           nutricion?: Json | null
           rpe?: number | null
           session_id?: string | null
+          transcripcion?: string | null
           user_id: string
         }
         Update: {
           activity_id?: string | null
+          audio_path?: string | null
+          audio_s?: number | null
           created_at?: string
           date?: string
           energia?: number | null
@@ -106,6 +114,7 @@ export type Database = {
           nutricion?: Json | null
           rpe?: number | null
           session_id?: string | null
+          transcripcion?: string | null
           user_id?: string
         }
         Relationships: [

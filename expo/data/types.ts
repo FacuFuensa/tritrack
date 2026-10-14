@@ -100,6 +100,11 @@ export interface Checkin {
   molestia: Molestia | null;
   nutricion: Nutricion | null;
   nota: string | null;
+  /** Lo que dijo en el audio, pasado a texto en el iPhone. */
+  transcripcion: string | null;
+  /** checkins-audio/<user_id>/… ; varias sesiones pueden compartir el mismo audio. */
+  audio_path: string | null;
+  audio_s: number | null;
   created_at: string;
 }
 
@@ -113,11 +118,24 @@ export interface CheckinInput {
   date: string;
   session_id?: string;
   activity_id?: string;
-  rpe: number;
-  energia: number;
+  rpe?: number;
+  energia?: number;
   molestia?: Molestia;
   nutricion?: Nutricion;
   nota?: string;
+  transcripcion?: string;
+  audio_path?: string;
+  audio_s?: number;
+}
+
+/** Check-in por audio: un solo audio para una o varias sesiones del día. */
+export interface VoiceCheckinInput {
+  date: string;
+  targets: ({ session_id: string } | { activity_id: string })[];
+  transcripcion: string;
+  /** Archivo local del audio; null si no se pudo guardar (web) o se escribió a mano. */
+  audioUri: string | null;
+  audio_s?: number;
 }
 
 // ---------------------------------------------------------------------------

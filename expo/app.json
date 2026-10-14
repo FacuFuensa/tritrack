@@ -42,6 +42,13 @@
         }
       ],
       [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "TriTrack usa el micrófono para grabar cómo te fue en el entrenamiento.",
+          "speechRecognitionPermission": "TriTrack pasa tu audio a texto para que el coach lo lea."
+        }
+      ],
+      [
         "expo-sensors",
         {
           "motionPermission": "TriTrack usa el movimiento del teléfono para inclinar las medallas."

@@ -100,7 +100,7 @@ export const remoteApi: DataApi = {
 
   async checkins({ from, to }) {
     const rows = list(await supabase.from('checkins')
-      .select('id, date, session_id, activity_id, rpe, energia, molestia, nutricion, nota, created_at')
+      .select('id, date, session_id, activity_id, rpe, energia, molestia, nutricion, nota, transcripcion, audio_path, audio_s, created_at')
       .gte('date', from).lte('date', to));
     return rows.map((r) => ({
       ...r,
@@ -137,11 +137,14 @@ export const remoteApi: DataApi = {
       date: input.date,
       session_id: input.session_id ?? null,
       activity_id: input.activity_id ?? null,
-      rpe: input.rpe,
-      energia: input.energia,
+      rpe: input.rpe ?? null,
+      energia: input.energia ?? null,
       molestia: (input.molestia ?? null) as never,
       nutricion: (input.nutricion ?? null) as never,
       nota: input.nota ?? null,
+      transcripcion: input.transcripcion ?? null,
+      audio_path: input.audio_path ?? null,
+      audio_s: input.audio_s ?? null,
     }));
   },
 
@@ -153,6 +156,14 @@ export const remoteApi: DataApi = {
     const path = `${await userId()}/${raceId}.png`;
     const body = await (await fetch(localUri)).arrayBuffer();
     check(await supabase.storage.from('medallas').upload(path, body, { contentType: 'image/png', upsert: true }));
+    return path;
+  },
+
+  async uploadCheckinAudio(localUri) {
+    const ext = localUri.split('?')[0].split('.').pop()?.toLowerCase() === 'wav' ? 'wav' : 'caf';
+    const path = `${await userId()}/${new Date().toISOString().replace(/[:.]/g, '-')}.${ext}`;
+    const body = await (await fetch(localUri)).arrayBuffer();
+    check(await supabase.storage.from('checkins-audio').upload(path, body, { contentType: ext === 'wav' ? 'audio/wav' : 'audio/x-caf' }));
     return path;
   },
 };

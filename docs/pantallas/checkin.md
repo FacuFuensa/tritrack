@@ -2,137 +2,80 @@
 
 ## 1. Para qué existe
 
-Después de entrenar, decirle al coach cómo fue en menos de 10 segundos: qué
-tan duro (RPE) y con cuánta energía. Lo demás (molestia, geles, nota) es
-opcional y está plegado. El coach lo lee el domingo para decidir la semana.
+Después de entrenar, contarle al coach cómo fue **hablando**: tocar el
+micrófono, decir cómo se sintió (piernas, energía, molestias, qué comió, por
+qué cambió algo) y guardar. Escribir obliga a resumir; el audio no. El iPhone
+pasa el audio a texto (dictado de Apple, `expo-speech-recognition`), la app
+sube el audio y guarda el texto en `checkins.transcripcion`. El coach lo lee
+entero el domingo.
+
+Si dos entrenamientos se hicieron uno atrás del otro, va **un solo audio para
+los dos**: una fila de `checkins` por sesión, con el mismo texto y el mismo
+`audio_path`.
 
 ## 2. Ruta y cómo se llega
 
-- Archivo: `expo/app/checkin.tsx`, registrado en el Stack raíz con
-  `presentation: 'formSheet'`, `sheetAllowedDetents: [0.75, 1]`,
-  `sheetGrabberVisible: true`, `headerShown: false`.
-- Parámetros: `session` (uuid de `plan_sessions`) **o** `activity`
-  (`external_id` de Strava). Uno de los dos.
-- Se llega desde "¿Cómo te fue?" (Hoy, Sesión) y desde la notificación
-  **"¿Cómo te fue en …?"**: deep links `tritrack://checkin?session=<uuid>` y
-  `tritrack://checkin?activity=<external_id>`.
+- Archivo: `expo/app/checkin.tsx` (formSheet del Stack raíz).
+- Parámetros, uno de los tres:
+  - `session`: una sesión del plan ("¿Cómo te fue?" de la tarjeta, Sesión,
+    notificación).
+  - `sessions`: varias sesiones separadas por coma. Lo usa el botón
+    **"Contale al coach cómo te fue"** de Hoy, debajo de las tarjetas: cubre
+    todas las sesiones de hoy que no son descanso ni salteadas.
+  - `activity`: `external_id` de Strava sin sesión.
+- La grabación vive en `expo/utils/useVoiceRecorder.ts`; el botón animado en
+  `expo/components/RecordButton.tsx`.
 
-## 3. Hooks
-
-```ts
-const { session, activity } = useLocalSearchParams<{ session?: string; activity?: string }>();
-const { data: s, isLoading } = useSession(session ?? '');   // deshabilitado si no hay session
-const { submit } = useCheckin();
-```
-
-| Elemento | Campo |
-|---|---|
-| Título de la hoja | `s.title` (o `disciplineName(s.discipline)`); con `activity`, texto fijo |
-| Fecha del check-in | `s.date`; con `activity`, `todayLocal()` |
-| Ya hecho | `s.checkin` |
-
-Al guardar:
-
-```ts
-await submit({
-  date,                          // ver arriba
-  session_id: session,           // o activity_id: activity
-  rpe, energia,                  // obligatorios
-  molestia: zona ? { zona, nivel } : undefined,
-  nutricion: geles > 0 ? { geles } : undefined,
-  nota: nota.trim() || undefined,
-});
-```
-
-## 4. Layout
+## 3. Layout
 
 ```
-┌──────────── manija del formSheet ──────────────┐
-│ ¿Cómo te fue en Trote suave?                   │ 22/800, máx 2 líneas
-│ MIÉ 14 OCT                                     │ 12/700 textSecondary
-│                                                │
-│ ¿Qué tan duro fue?                             │ 15/700
-│ [1][2][3][4][5][6][7][8][9][10]                │ ScaleSelector, color Colors.accent
-│ muy suave                        al máximo     │ labels 1 y 10
-│                                                │
-│ ¿Cómo estaba tu energía?                       │ 15/700
-│ [1] [2] [3] [4] [5]                            │ ScaleSelector, color Colors.recovery
-│ vacío                                  a tope  │
-│                                                │
-│ ▸ Agregar molestia, geles o nota               │ 14/600 Colors.accent (plegado)
-│ ┌ (desplegado) ───────────────────────────────┐│
-│ │ Molestia                                    ││ 13/700 textSecondary
-│ │ (Rodilla)(Tobillo)(Gemelo)(Isquios)(Cuádr.) ││ chips en 2-3 filas (flexWrap),
-│ │ (Cadera)(Espalda baja)(Hombro)(Pie)(Otra)   ││   uno solo elegible, tocar de nuevo
-│ │ [nada][tirante][dolor][calambre]            ││   lo deselecciona
-│ │                                             ││ nivel: aparece al elegir zona
-│ │ Geles     (−)  2  (+)                       ││ stepper 0–6
-│ │ Nota                                        ││
-│ │ [ Algo que el coach tenga que saber…     ]  ││ TextInput multilínea, 3 líneas,
-│ └─────────────────────────────────────────────┘│   máx 280 caracteres
-│                                                │
-│ [            Guardar            ]              │ PrimaryButton, fijo abajo
-└────────────────────────────────────────────────┘
+¿Cómo te fue hoy?                      (una sesión: ¿Cómo te fue en <título>?)
+MIÉ 14 OCT
+(● Nado continuo) (● Trote suave)      chips solo si son varias sesiones
+Piernas, energía, si algo molestó, qué comiste, por qué cambiaste algo.
+El domingo el coach lo lee entero.
+
+                 (( 🎙 ))               botón de 96, azul; grabando: rojo con
+           Tocá y contá cómo te sentiste   dos anillos que laten y un halo que
+                                           sigue el volumen de la voz
+┌───────────────────────────────────┐
+│ lo que vas diciendo, en vivo…     │  editable al terminar
+└───────────────────────────────────┘
+[              Guardar              ]
 ```
 
-- Fondo `Colors.backgroundLight`, padding 20.
-- Chips: alto 34, radio 17, padding horizontal 14, 13/600. Elegido: fondo
-  `Colors.warning + '25'`, borde `Colors.warning`, texto `Colors.warning`.
-- Nivel: `ScaleSelector` con valores `[0,1,2,3]` mostrando los textos en vez
-  de números (botones con texto 13/600), color `Colors.warning`. Por
-  defecto, 1 ("tirante") al elegir una zona.
-- El teclado no debe tapar el botón: `KeyboardAvoidingView` con
-  `behavior="padding"`.
-
-## 5. Estados
+## 4. Estados
 
 | Estado | Qué se ve |
 |---|---|
-| Cargando la sesión | Título **"¿Cómo te fue?"** y los selectores igual (se puede cargar sin esperar) |
-| Error o sesión inexistente | Título **"¿Cómo te fue?"**; se guarda igual con `session_id` |
-| Con `activity` | Título **"¿Cómo te fue en tu entrenamiento?"** |
-| Ya tiene check-in (`s.checkin`) | Arriba, nota 13/500 `textSecondary`: **"Ya cargaste uno. Si guardás de nuevo, vale el último."**, selectores precargados con esos valores |
-| Falta RPE o energía | Botón deshabilitado (opacidad 0.4) |
-| Guardando | Botón con `loading` |
-| Error al guardar | Debajo del botón, **"No se pudo guardar. Revisá la conexión y probá de nuevo."** 13/600 `Colors.danger`; la hoja queda abierta con lo cargado |
-| Sin parámetros | `EmptyState` **"No sé de qué entrenamiento es"** y acción **"Cerrar"** |
+| Sin grabar | Micrófono azul, **"Tocá y contá cómo te sentiste"**, link **"Prefiero escribirlo"** |
+| Preparando | **"Preparando el micrófono…"** |
+| Grabando | Botón rojo con cuadrado (parar), anillos, **"Grabando · 0:12"** en rojo (los primeros segundos, **"Grabando…"**); el texto aparece en vivo |
+| Pasando a texto | **"Pasando a texto…"** |
+| Listo | **"Audio de 0:48 listo"** y **"Grabar de nuevo"**; el texto se puede corregir |
+| Sin permiso | **"TriTrack no tiene permiso para el micrófono. Activalo en Ajustes › TriTrack, o escribilo abajo."** y aparece el cuadro de texto |
+| Dictado no disponible / se cortó | Aviso en rojo y cuadro de texto |
+| Ya tiene check-in | **"Ya cargaste uno. Si guardás de nuevo, vale el último."**, texto precargado |
+| Guardar | Deshabilitado sin texto o mientras graba |
+| Error al guardar | **"No se pudo guardar. Revisá la conexión y probá de nuevo."** |
+| Sin parámetros | `EmptyState` **"No sé de qué entrenamiento es"** / **"Cerrar"** |
 
-## 6. Interacciones
+## 5. Datos
 
-| Toque | Hace |
-|---|---|
-| Número de RPE / energía | Elige; haptic `Selection` |
-| "Agregar molestia, geles o nota" | Despliega la sección (LayoutAnimation) y el texto cambia a **"▾ Ocultar"** |
-| Chip de zona | Elige o deselecciona; con zona elegida aparece el nivel |
-| (−) / (+) | Geles 0–6 |
-| Guardar | `submit(...)`; si sale bien: haptic `Success` y `router.back()` |
-| Deslizar hacia abajo | Cierra sin guardar (sin confirmación) |
+- Idioma: `es-AR` si el iPhone lo tiene; si hay un español descargado para
+  dictado sin conexión, transcribe en el teléfono (sin el límite de un minuto
+  del servidor de Apple).
+- Audio: WAV/CAF 16 kHz 16 bits (~2 MB por minuto) a
+  `checkins-audio/<user_id>/<fecha>.caf`, privado.
+- `rpe` y `energia` quedan `null`: el coach los infiere del texto.
+- En web (modo mock) se transcribe con el dictado del navegador y no se
+  guarda el archivo.
 
-Camino rápido: tocar RPE, tocar energía, Guardar = 3 toques.
+## 6. Checklist de aceptación
 
-## 7. Textos exactos
-
-**¿Cómo te fue en <título>?** · **¿Cómo te fue?** · **¿Cómo te fue en tu
-entrenamiento?** · **¿Qué tan duro fue?** · **muy suave** · **al máximo** ·
-**¿Cómo estaba tu energía?** · **vacío** · **a tope** · **▸ Agregar molestia,
-geles o nota** · **▾ Ocultar** · **Molestia** · zonas: **Rodilla, Tobillo,
-Gemelo, Isquios, Cuádriceps, Cadera, Espalda baja, Hombro, Pie, Otra** ·
-niveles: **nada, tirante, dolor, calambre** · **Geles** · **Nota** ·
-placeholder **Algo que el coach tenga que saber…** · **Guardar** · **Ya
-cargaste uno. Si guardás de nuevo, vale el último.** · **No se pudo guardar.
-Revisá la conexión y probá de nuevo.** · **No sé de qué entrenamiento es** ·
-**Cerrar**.
-
-La zona se guarda en minúsculas (`'rodilla'`, `'espalda baja'`, …).
-
-## 8. Checklist de aceptación
-
-- [ ] Desde Hoy (mock), "¿Cómo te fue?" del trote abre la hoja con el título
-      "¿Cómo te fue en Trote suave?".
-- [ ] Con 3 toques (RPE, energía, Guardar) se guarda, la hoja se cierra y la
-      tarjeta de Hoy muestra el RPE.
-- [ ] Guardar sigue deshabilitado hasta tener RPE y energía.
-- [ ] El nado (que ya tiene check-in) abre precargado y con el aviso.
-- [ ] `tritrack://checkin?activity=123` abre la hoja con el título genérico.
-- [ ] El teclado de la nota no tapa el botón.
-- [ ] Capturas: plegada, desplegada con molestia, error al guardar.
+- [ ] En Hoy, debajo de las tarjetas, está **"Contale al coach cómo te fue"**;
+      con dos sesiones dice **"Un audio para todos los entrenamientos de hoy."**
+- [ ] Tocar el micrófono pide permiso, anima y muestra el texto en vivo.
+- [ ] Parar, corregir, Guardar: la hoja se cierra y las dos tarjetas muestran
+      el texto con un micrófono chico.
+- [ ] Sin permiso de micrófono se puede escribir y guardar igual.
