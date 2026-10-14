@@ -40,11 +40,14 @@ export const mockApi: DataApi = {
       date: input.date,
       session_id: input.session_id ?? null,
       activity_id: input.activity_id ?? null,
-      rpe: input.rpe,
-      energia: input.energia,
+      rpe: input.rpe ?? null,
+      energia: input.energia ?? null,
       molestia: input.molestia ?? null,
       nutricion: input.nutricion ?? null,
       nota: input.nota ?? null,
+      transcripcion: input.transcripcion ?? null,
+      audio_path: input.audio_path ?? null,
+      audio_s: input.audio_s ?? null,
       created_at: new Date().toISOString(),
     });
     await delay(null);
@@ -62,5 +65,10 @@ export const mockApi: DataApi = {
     if (r) r.medal_url = localUri; // en mock, la foto local hace de URL
     await delay(null);
     return `mock/${raceId}.png`;
+  },
+
+  async uploadCheckinAudio() {
+    await delay(null);
+    return `mock/audio-${sc.checkins.length + 1}.caf`;
   },
 };

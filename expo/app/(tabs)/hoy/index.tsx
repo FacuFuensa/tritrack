@@ -1,7 +1,7 @@
 import React from 'react';
-import { Pressable, ScrollView, RefreshControl, Text, View } from 'react-native';
+import { Pressable, ScrollView, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Coffee, CalendarX } from 'lucide-react-native';
+import { Coffee, CalendarX, Mic } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useToday } from '@/data/useToday';
 import { todayLocal } from '@/data/calc/dates';
@@ -28,6 +28,8 @@ export default function Hoy() {
       {data.nextRace && <Pressable accessibilityRole="button" accessibilityLabel={data.nextRace.name} onPress={() => router.push(`/carrera/${data.nextRace!.id}`)}><GlassCard><View style={styles.spread}><View style={styles.flex}><Text style={styles.label}>PRÓXIMA CARRERA{data.nextRace.priority ? ` · ${data.nextRace.priority}` : ''}</Text><Text style={[styles.title, { marginTop: 8 }]}>{data.nextRace.name}</Text><Text style={[styles.secondary, { marginTop: 6 }]}>{raceKindName(data.nextRace.kind)}</Text></View><Countdown days={data.nextRace.days_to} /></View></GlassCard></Pressable>}
       <Text style={styles.section}>ENTRENAMIENTO DE HOY</Text>
       {data.sessions.length ? data.sessions.map(s => <SessionCard key={s.id} session={s} onPress={() => router.push(`/sesion/${s.id}`)} onCheckin={() => router.push({ pathname: '/checkin', params: { session: s.id } })} />) : <EmptyState icon={data.missingWeek ? CalendarX : Coffee} title={data.missingWeek ? 'Sin plan para hoy' : 'Hoy es descanso'} body={data.missingWeek ? undefined : 'No hay nada planeado. Si salís igual, Strava lo registra.'} />}
+      {data.sessions.filter(s => s.discipline !== 'rest' && s.status !== 'skipped').length > 0 && <Pressable accessibilityRole="button" accessibilityLabel="Grabar un audio para el coach" onPress={() => router.push({ pathname: '/checkin', params: { sessions: data.sessions.filter(s => s.discipline !== 'rest' && s.status !== 'skipped').map(s => s.id).join(',') } })} style={({ pressed }) => [local.voice, pressed && { opacity: 0.7 }]}><View style={local.mic}><Mic size={26} color={Colors.textPrimary} /></View><View style={styles.flex}><Text style={styles.title}>Contale al coach cómo te fue</Text><Text style={[styles.secondary, { marginTop: 4 }]}>{data.sessions.filter(s => s.discipline !== 'rest' && s.status !== 'skipped').length > 1 ? 'Un audio para todos los entrenamientos de hoy.' : 'Grabá un audio: cómo te sentiste y por qué.'}</Text></View></Pressable>}
     </>}
   </ScrollView></SafeAreaView>;
 }
+const local = StyleSheet.create({ voice: { flexDirection: 'row', alignItems: 'center', gap: 16, marginHorizontal: 20, marginTop: 12, padding: 18, borderRadius: 20, borderWidth: 1, borderColor: Colors.accent + '40', backgroundColor: Colors.accent + '14' }, mic: { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center' } });

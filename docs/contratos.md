@@ -15,6 +15,7 @@ Esquema `tritrack://`. La app los recibe desde notificaciones y desde el OAuth.
 | `tritrack://semana` | Pestaña Semana (la notificación "Tu semana está lista" lleva acá) |
 | `tritrack://checkin?session=<uuid>` | Hoja de check-in de esa sesión del plan |
 | `tritrack://checkin?activity=<external_id>` | Hoja de check-in de una actividad de Strava sin sesión |
+| `tritrack://checkin?sessions=<uuid>,<uuid>` | Un solo audio para varias sesiones del mismo día (botón de Hoy) |
 | `tritrack://carrera/<race_id>` | Detalle de carrera |
 | `tritrack://trofeo/<race_id>` | Detalle de trofeo |
 | `tritrack://oauth?provider=strava\|whoop&ok=1\|0[&error=…]` | Vuelta del OAuth (lo maneja Ajustes; no es para pantallas) |
@@ -76,6 +77,9 @@ interface Checkin {
   id: string; date: string; session_id: string | null; activity_id: string | null;
   rpe: number | null; energia: number | null;           // 1-10 y 1-5
   molestia: Molestia | null; nutricion: Nutricion | null; nota: string | null;
+  transcripcion: string | null;   // el audio pasado a texto en el iPhone
+  audio_path: string | null;      // checkins-audio/<user_id>/…; varias sesiones pueden compartirlo
+  audio_s: number | null;
   created_at: string;
 }
 
@@ -83,8 +87,15 @@ interface SessionView extends PlanSession { actual?: ActualData; checkin?: Check
 
 interface CheckinInput {          // session_id o activity_id, uno de los dos
   date: string; session_id?: string; activity_id?: string;
-  rpe: number; energia: number;
+  rpe?: number; energia?: number;
   molestia?: Molestia; nutricion?: Nutricion; nota?: string;
+  transcripcion?: string; audio_path?: string; audio_s?: number;
+}
+
+interface VoiceCheckinInput {     // un audio, una fila por sesión que cubre
+  date: string;
+  targets: ({ session_id: string } | { activity_id: string })[];
+  transcripcion: string; audioUri: string | null; audio_s?: number;
 }
 ```
 
@@ -212,7 +223,7 @@ falla; la pantalla muestra su propio texto, no `error.message`):
 | Hook | Funciones |
 |---|---|
 | `useWeekActions()` | `accept(weekId)`, `requestChanges(weekId, feedback)` |
-| `useCheckin()` | `submit(input: CheckinInput)` |
+| `useCheckin()` | `submit(input: CheckinInput)`, `submitVoice(input: VoiceCheckinInput)` (sube el audio una vez) |
 | `useRaceActions()` | `markRegistered(id)`, `setMedal(id, localUri)`, `saveManualResult(id, result: RaceResult)` |
 
 Después de escribir, los hooks de lectura se refrescan solos.

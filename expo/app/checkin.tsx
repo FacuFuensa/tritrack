@@ -1,52 +1,91 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, LayoutAnimation, Pressable, ScrollView, Text, TextInput, View, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, Pressable, ScrollView, Text, TextInput, View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { CircleHelp } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useSession } from '@/data/useSession';
+import { useToday } from '@/data/useToday';
 import { useCheckin } from '@/data/useCheckin';
 import { todayLocal } from '@/data/calc/dates';
 import { disciplineName, fmtDate } from '@/utils/format';
-import type { Molestia } from '@/data/types';
+import { useVoiceRecorder } from '@/utils/useVoiceRecorder';
+import type { SessionView } from '@/data/types';
 import Colors from '@/constants/colors';
-import ScaleSelector from '@/components/ScaleSelector';
+import RecordButton from '@/components/RecordButton';
+import DisciplineDot from '@/components/DisciplineDot';
 import PrimaryButton from '@/components/PrimaryButton';
 import EmptyState from '@/components/EmptyState';
 import common from '@/components/screenStyles';
 
-const zones = ['Rodilla', 'Tobillo', 'Gemelo', 'Isquios', 'Cuádriceps', 'Cadera', 'Espalda baja', 'Hombro', 'Pie', 'Otra'];
+const errors = {
+  permiso: 'TriTrack no tiene permiso para el micrófono. Activalo en Ajustes › TriTrack, o escribilo abajo.',
+  'no-disponible': 'El dictado no está disponible en este teléfono ahora. Escribilo abajo.',
+  fallo: 'Se cortó la grabación. Probá de nuevo o escribilo abajo.',
+};
+const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+const nameOf = (s: SessionView) => s.title ?? disciplineName(s.discipline);
+
+// Check-in por audio. ?session=<id> (una sesión), ?sessions=<id>,<id> (varias
+// del mismo día, un solo audio) o ?activity=<external_id> (actividad suelta).
 export default function Checkin() {
-  const { session, activity } = useLocalSearchParams<{ session?: string; activity?: string }>();
-  const { data: s } = useSession(session ?? '');
-  const { submit } = useCheckin();
-  const [rpe, setRpe] = useState<number | null>(null), [energia, setEnergia] = useState<number | null>(null);
-  const [expanded, setExpanded] = useState(false), [zona, setZona] = useState<string | null>(null), [nivel, setNivel] = useState<Molestia['nivel']>(1);
-  const [geles, setGeles] = useState(0), [nota, setNota] = useState(''), [saving, setSaving] = useState(false), [failed, setFailed] = useState(false);
-  const edited = useRef(false), loaded = useRef<string | null>(null);
+  const { session, sessions, activity } = useLocalSearchParams<{ session?: string; sessions?: string; activity?: string }>();
+  const ids = sessions ? sessions.split(',').filter(Boolean) : session ? [session] : [];
+  const { data: single } = useSession(ids.length === 1 ? ids[0] : '');
+  const { data: today } = useToday();
+  const covered: SessionView[] = ids.length === 1 ? (single ? [single] : []) : (today?.sessions ?? []).filter(s => ids.includes(s.id));
+  const { submitVoice } = useCheckin();
+  const rec = useVoiceRecorder();
+  const [text, setText] = useState(''), [writing, setWriting] = useState(false);
+  const [saving, setSaving] = useState(false), [failed, setFailed] = useState(false);
+  const loaded = useRef(false);
+
+  const previous = covered.find(s => s.checkin)?.checkin;
   useEffect(() => {
-    if (!s?.checkin || edited.current || loaded.current === s.checkin.id) return;
-    loaded.current = s.checkin.id;
-    setRpe(s.checkin.rpe); setEnergia(s.checkin.energia); setZona(s.checkin.molestia?.zona ?? null); setNivel(s.checkin.molestia?.nivel ?? 1); setGeles(s.checkin.nutricion?.geles ?? 0); setNota(s.checkin.nota ?? '');
-  }, [s]);
+    if (loaded.current || !previous) return;
+    loaded.current = true;
+    const t = previous.transcripcion ?? previous.nota;
+    if (t) { setText(t); setWriting(true); }
+  }, [previous]);
+  // Lo que se dicta va al cuadro de texto; después se puede corregir a mano.
+  useEffect(() => { if (rec.text) setText(rec.text); }, [rec.text]);
+  useEffect(() => { if (rec.error) setWriting(true); }, [rec.error]);
+
+  const recording = rec.state === 'recording' || rec.state === 'starting';
+  const busy = rec.state === 'starting' || rec.state === 'stopping';
   const close = () => router.canGoBack() ? router.back() : router.replace('/hoy');
+  const date = covered[0]?.date ?? todayLocal();
+
   async function save() {
-    if (rpe == null || energia == null || saving) return;
+    const t = text.trim();
+    if (!t || saving || recording || busy) return;
     setSaving(true); setFailed(false);
-    try { await submit({ date: s?.date ?? todayLocal(), ...(session ? { session_id: session } : { activity_id: activity }), rpe, energia, molestia: zona ? { zona, nivel } : undefined, nutricion: geles > 0 ? { geles } : undefined, nota: nota.trim() || undefined }); void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); close(); }
-    catch { setFailed(true); }
+    try {
+      const targets = ids.length ? ids.map(session_id => ({ session_id })) : [{ activity_id: activity! }];
+      await submitVoice({ date, targets, transcripcion: t, audioUri: rec.state === 'done' ? rec.audioUri : null, audio_s: rec.state === 'done' && rec.seconds > 0 ? rec.seconds : undefined });
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); close();
+    } catch { setFailed(true); }
     finally { setSaving(false); }
   }
-  if (!session && !activity) return <SafeAreaView style={styles.screen}><EmptyState icon={CircleHelp} title="No sé de qué entrenamiento es" actionLabel="Cerrar" onAction={close} /></SafeAreaView>;
+
+  if (!ids.length && !activity) return <SafeAreaView style={styles.screen}><EmptyState icon={CircleHelp} title="No sé de qué entrenamiento es" actionLabel="Cerrar" onAction={close} /></SafeAreaView>;
+  const title = covered.length === 1 ? `¿Cómo te fue en ${nameOf(covered[0])}?` : covered.length > 1 ? '¿Cómo te fue hoy?' : activity ? '¿Cómo te fue en tu entrenamiento?' : '¿Cómo te fue?';
+  const status = rec.state === 'starting' ? 'Preparando el micrófono…' : rec.state === 'recording' ? (rec.seconds > 0 ? `Grabando · ${mmss(rec.seconds)}` : 'Grabando…') : rec.state === 'stopping' ? 'Pasando a texto…' : rec.state === 'done' ? (rec.seconds > 0 ? `Audio de ${mmss(rec.seconds)} listo` : 'Audio listo') : 'Tocá y contá cómo te sentiste';
+  const showText = writing || rec.state !== 'idle';
+
   return <SafeAreaView edges={['top', 'bottom']} style={styles.screen}><KeyboardAvoidingView behavior="padding" style={common.flex}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-    <Text style={styles.title}>{session ? s ? `¿Cómo te fue en ${s.title ?? disciplineName(s.discipline)}?` : '¿Cómo te fue?' : '¿Cómo te fue en tu entrenamiento?'}</Text><Text style={styles.date}>{fmtDate(s?.date ?? todayLocal()).toUpperCase()}</Text>
-    {s?.checkin && <Text style={[common.secondary, { marginBottom: 16 }]}>Ya cargaste uno. Si guardás de nuevo, vale el último.</Text>}
-    <Text style={styles.question}>¿Qué tan duro fue?</Text><ScaleSelector values={[1,2,3,4,5,6,7,8,9,10]} value={rpe} onChange={n => { edited.current = true; setRpe(n); }} labels={{ 1: 'muy suave', 10: 'al máximo' }} />
-    <Text style={styles.question}>¿Cómo estaba tu energía?</Text><ScaleSelector values={[1,2,3,4,5]} value={energia} onChange={n => { edited.current = true; setEnergia(n); }} color={Colors.recovery} labels={{ 1: 'vacío', 5: 'a tope' }} />
-    <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setExpanded(!expanded); }}><Text style={[common.action, { marginTop: 18 }]}>{expanded ? '▾ Ocultar' : '▸ Agregar molestia, geles o nota'}</Text></Pressable>
-    {expanded && <View><Text style={styles.optionalLabel}>Molestia</Text><View style={styles.chips}>{[...zones, ...(zona && !zones.some(z => z.toLowerCase() === zona) ? [zona] : [])].map(z => <Pressable key={z} accessibilityRole="button" accessibilityState={{ selected: zona === z.toLowerCase() }} onPress={() => { edited.current = true; setZona(zona === z.toLowerCase() ? null : z.toLowerCase()); setNivel(1); }} style={[styles.chip, zona === z.toLowerCase() && styles.chipSelected]}><Text style={[styles.chipText, zona === z.toLowerCase() && { color: Colors.warning }]}>{z}</Text></Pressable>)}</View>{zona && <ScaleSelector values={[0,1,2,3]} value={nivel} color={Colors.warning} optionLabels={{ 0: 'nada', 1: 'tirante', 2: 'dolor', 3: 'calambre' }} onChange={n => { edited.current = true; setNivel(n as Molestia['nivel']); }} />}
-    <View style={styles.gels}><Text style={styles.optionalLabel}>Geles</Text><View style={common.row}><Pressable accessibilityRole="button" accessibilityLabel="Menos geles" disabled={geles === 0} onPress={() => { edited.current = true; setGeles(Math.max(0, geles - 1)); }} style={styles.stepper}><Text style={common.title}>−</Text></Pressable><Text style={common.title}>{geles}</Text><Pressable accessibilityRole="button" accessibilityLabel="Más geles" disabled={geles === 6} onPress={() => { edited.current = true; setGeles(Math.min(6, geles + 1)); }} style={styles.stepper}><Text style={common.title}>+</Text></Pressable></View></View>
-    <Text style={styles.optionalLabel}>Nota</Text><TextInput accessibilityLabel="Nota" placeholder="Algo que el coach tenga que saber…" placeholderTextColor={Colors.textTertiary} multiline numberOfLines={3} maxLength={280} value={nota} onChangeText={t => { edited.current = true; setNota(t); }} style={common.input} /></View>}
-  </ScrollView><View style={styles.footer}><PrimaryButton label="Guardar" loading={saving} disabled={rpe == null || energia == null} onPress={() => { void save(); }} />{failed && <Text style={common.error}>No se pudo guardar. Revisá la conexión y probá de nuevo.</Text>}</View></KeyboardAvoidingView></SafeAreaView>;
+    <Text style={styles.title}>{title}</Text><Text style={styles.date}>{fmtDate(date).toUpperCase()}</Text>
+    {covered.length > 1 && <View style={styles.chips}>{covered.map(s => <View key={s.id} style={styles.chip}>{s.discipline && <DisciplineDot discipline={s.discipline} />}<Text style={styles.chipText}>{nameOf(s)}</Text></View>)}</View>}
+    {previous && <Text style={[common.secondary, { marginBottom: 8 }]}>Ya cargaste uno. Si guardás de nuevo, vale el último.</Text>}
+    <Text style={common.secondary}>Piernas, energía, si algo molestó, qué comiste, por qué cambiaste algo. El domingo el coach lo lee entero.</Text>
+    <View style={styles.recorder}>
+      <RecordButton recording={recording} busy={busy} volume={rec.volume} onPress={() => { if (recording) rec.stop(); else { setWriting(false); void rec.start(); } }} />
+      <Text style={[styles.status, recording && { color: Colors.danger }]}>{status}</Text>
+      {rec.state === 'done' && <Pressable accessibilityRole="button" onPress={() => { rec.reset(); setText(''); }}><Text style={common.action}>Grabar de nuevo</Text></Pressable>}
+      {rec.error && <Text style={[common.error, styles.center]}>{errors[rec.error]}</Text>}
+    </View>
+    {showText ? <TextInput accessibilityLabel="Lo que le contás al coach" placeholder={recording ? 'Te escucho…' : 'Contale al coach cómo te fue…'} placeholderTextColor={Colors.textTertiary} multiline editable={!recording && !busy} value={text} onChangeText={setText} style={[common.input, styles.input, recording && styles.live]} />
+      : <Pressable accessibilityRole="button" onPress={() => setWriting(true)}><Text style={[common.action, styles.center]}>Prefiero escribirlo</Text></Pressable>}
+  </ScrollView><View style={styles.footer}><PrimaryButton label="Guardar" loading={saving} disabled={!text.trim() || recording || busy} onPress={() => { void save(); }} />{failed && <Text style={common.error}>No se pudo guardar. Revisá la conexión y probá de nuevo.</Text>}</View></KeyboardAvoidingView></SafeAreaView>;
 }
-const styles = StyleSheet.create({ screen: { flex: 1, backgroundColor: Colors.backgroundLight }, content: { padding: 20, paddingBottom: 24 }, title: { color: Colors.textPrimary, fontSize: 22, fontWeight: '800' }, date: { color: Colors.textSecondary, fontSize: 12, fontWeight: '700', marginTop: 8, marginBottom: 16 }, question: { color: Colors.textPrimary, fontSize: 15, fontWeight: '700', marginBottom: 14, marginTop: 18 }, optionalLabel: { color: Colors.textSecondary, fontSize: 13, fontWeight: '700', marginBottom: 10 }, chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }, chip: { height: 34, borderRadius: 17, paddingHorizontal: 14, justifyContent: 'center', borderWidth: 1, borderColor: Colors.cardBorder, backgroundColor: Colors.backgroundCard }, chipSelected: { backgroundColor: Colors.warning + '25', borderColor: Colors.warning }, chipText: { color: Colors.textSecondary, fontSize: 13, fontWeight: '600' }, gels: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 20 }, stepper: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: Colors.backgroundCard }, footer: { padding: 20, borderTopWidth: 1, borderColor: Colors.cardBorder } });
+const styles = StyleSheet.create({ screen: { flex: 1, backgroundColor: Colors.backgroundLight }, content: { padding: 20, paddingBottom: 24 }, title: { color: Colors.textPrimary, fontSize: 22, fontWeight: '800' }, date: { color: Colors.textSecondary, fontSize: 12, fontWeight: '700', marginTop: 8, marginBottom: 16 }, chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }, chip: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, borderRadius: 16, paddingHorizontal: 12, borderWidth: 1, borderColor: Colors.cardBorder, backgroundColor: Colors.backgroundCard }, chipText: { color: Colors.textPrimary, fontSize: 13, fontWeight: '600' }, recorder: { alignItems: 'center', marginVertical: 12 }, status: { color: Colors.textSecondary, fontSize: 14, fontWeight: '700', marginTop: 4 }, center: { textAlign: 'center' }, input: { minHeight: 140 }, live: { borderColor: Colors.danger + '60' }, footer: { padding: 20, borderTopWidth: 1, borderColor: Colors.cardBorder } });

@@ -127,7 +127,7 @@ export function buildScenario(today: string): Scenario {
   const checkins: Checkin[] = [
     { id: 'chk-1', date: today, session_id: 'ses-swim-hoy', activity_id: 'act-swim-hoy', rpe: 5, energia: 4,
       molestia: { zona: 'hombro derecho', nivel: 1 }, nutricion: null, nota: 'Agua fría, costó arrancar.',
-      created_at: `${today}T13:00:00Z` },
+      transcripcion: null, audio_path: null, audio_s: null, created_at: `${today}T13:00:00Z` },
   ];
 
   const recovery: RecoveryRow[] = [0, 1, 2].map((i) => ({
