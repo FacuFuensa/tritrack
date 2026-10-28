@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/images/splash-blank.png",
       "resizeMode": "contain",
       "backgroundColor": "#080C1A"
     },
@@ -19,6 +19,9 @@
       "appleTeamId": "RS6J29JLPS",
       "config": {
         "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"]
       }
     },
     "android": {
