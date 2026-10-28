@@ -1,7 +1,10 @@
 // Graba un audio y lo pasa a texto en el teléfono (dictado de Apple, o el del
 // navegador en web). Devuelve el texto, el archivo y cuánto duró.
-import { useCallback, useRef, useState } from 'react';
+// Si se corta (se bloqueó el teléfono, entró una llamada), start(texto, segundos)
+// sigue desde ahí: lo nuevo se suma al final en vez de empezar de cero.
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 
 export type RecorderState = 'idle' | 'starting' | 'recording' | 'stopping' | 'done';
@@ -10,6 +13,8 @@ export type RecorderError = 'permiso' | 'no-disponible' | 'fallo';
 // El rioplatense primero; si el iPhone tiene otro español descargado, ese
 // transcribe en el teléfono, sin el límite de un minuto del servidor de Apple.
 const CANDIDATES = ['es-AR', 'es-419', 'es-US', 'es-MX', 'es-ES'];
+const KEEP_AWAKE = 'grabacion';
+const join = (a: string, b: string) => [a.trim(), b.trim()].filter(Boolean).join(' ');
 
 async function pickLocale(): Promise<{ lang: string; onDevice: boolean }> {
   if (Platform.OS === 'web') return { lang: 'es-AR', onDevice: false };
@@ -29,36 +34,52 @@ export function useVoiceRecorder() {
   const [finalText, setFinalText] = useState('');
   const [interim, setInterim] = useState('');
   const [volume, setVolume] = useState(0); // 0..1
-  const [audioUri, setAudioUri] = useState<string | null>(null);
+  // Cada vez que se retoma la grabación queda un archivo aparte; se sube el más largo.
+  const [clips, setClips] = useState<{ uri: string; seconds: number }[]>([]);
   const [seconds, setSeconds] = useState(0);
   const startedAt = useRef<number | null>(null);
+  const before = useRef(0); // segundos grabados antes de retomar
+  const pendingUri = useRef<string | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const failed = useRef(false);
+  const hadContent = useRef(false); // se retomó sobre algo ya grabado o escrito
 
   const stopTimer = () => { if (timer.current) clearInterval(timer.current); timer.current = null; };
+
+  // Mientras graba, la pantalla no se apaga sola: bloquearse corta el audio.
+  const awake = state === 'starting' || state === 'recording';
+  useEffect(() => {
+    if (!awake) return;
+    void activateKeepAwakeAsync(KEEP_AWAKE).catch(() => {});
+    return () => { void deactivateKeepAwake(KEEP_AWAKE).catch(() => {}); };
+  }, [awake]);
 
   useSpeechRecognitionEvent('start', () => {
     setState('recording');
     startedAt.current = Date.now();
     stopTimer();
-    timer.current = setInterval(() => setSeconds(Math.floor((Date.now() - (startedAt.current ?? Date.now())) / 1000)), 250);
+    timer.current = setInterval(() => setSeconds(before.current + Math.floor((Date.now() - (startedAt.current ?? Date.now())) / 1000)), 250);
   });
   // En modo continuo cada resultado final es un tramo nuevo: se concatenan.
   useSpeechRecognitionEvent('result', (e) => {
     const t = e.results[0]?.transcript ?? '';
-    if (e.isFinal) { setFinalText((prev) => [prev, t.trim()].filter(Boolean).join(' ')); setInterim(''); }
+    if (e.isFinal) { setFinalText((prev) => join(prev, t)); setInterim(''); }
     else setInterim(t);
   });
   useSpeechRecognitionEvent('volumechange', (e) => setVolume(Math.max(0, Math.min(1, e.value / 10))));
-  useSpeechRecognitionEvent('audioend', (e) => { if (e.uri) setAudioUri(e.uri); });
+  useSpeechRecognitionEvent('audioend', (e) => { if (e.uri) pendingUri.current = e.uri; });
   useSpeechRecognitionEvent('end', () => {
     stopTimer();
-    if (startedAt.current) setSeconds(Math.round((Date.now() - startedAt.current) / 1000));
+    const clip = startedAt.current ? Math.round((Date.now() - startedAt.current) / 1000) : 0;
+    if (startedAt.current) setSeconds(before.current + clip);
+    const uri = pendingUri.current;
+    pendingUri.current = null;
+    if (uri) setClips((prev) => [...prev, { uri, seconds: clip }]);
     setVolume(0);
     // Si quedó un parcial sin cerrar (se cortó a mitad de frase), se guarda igual.
-    setInterim((rest) => { if (rest.trim()) setFinalText((prev) => [prev, rest.trim()].filter(Boolean).join(' ')); return ''; });
-    // Si falló antes de grabar algo, se vuelve al principio.
-    setState(failed.current && !startedAt.current ? 'idle' : 'done');
+    setInterim((rest) => { if (rest.trim()) setFinalText((prev) => join(prev, rest)); return ''; });
+    // Si falló antes de grabar algo nuevo, se vuelve a donde estaba.
+    setState(failed.current && !startedAt.current && !hadContent.current ? 'idle' : 'done');
   });
   useSpeechRecognitionEvent('error', (e) => {
     if (e.error === 'aborted' || e.error === 'no-speech') return;
@@ -67,13 +88,17 @@ export function useVoiceRecorder() {
     setError(e.error === 'not-allowed' ? 'permiso' : e.error === 'service-not-allowed' || e.error === 'language-not-supported' ? 'no-disponible' : 'fallo');
   });
 
-  const start = useCallback(async () => {
+  // base y baseSeconds: lo que ya había (texto y segundos). Lo nuevo se suma.
+  const start = useCallback(async (base = '', baseSeconds = 0) => {
     setError(null); failed.current = false; startedAt.current = null;
     if (!ExpoSpeechRecognitionModule.isRecognitionAvailable()) { setError('no-disponible'); return; }
+    hadContent.current = !!base.trim() || baseSeconds > 0;
+    before.current = baseSeconds; pendingUri.current = null; setSeconds(baseSeconds);
     setState('starting');
     const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-    if (!perm.granted) { setState('idle'); setError('permiso'); return; }
-    setFinalText(''); setInterim(''); setAudioUri(null); setSeconds(0);
+    if (!perm.granted) { setState(hadContent.current ? 'done' : 'idle'); setError('permiso'); return; }
+    setFinalText(base.trim()); setInterim('');
+    if (!hadContent.current) setClips([]);
     const { lang, onDevice } = await pickLocale();
     ExpoSpeechRecognitionModule.start({
       lang,
@@ -93,9 +118,11 @@ export function useVoiceRecorder() {
   const reset = useCallback(() => {
     ExpoSpeechRecognitionModule.abort();
     stopTimer();
-    setState('idle'); setError(null); setFinalText(''); setInterim(''); setAudioUri(null); setSeconds(0); setVolume(0);
+    before.current = 0; pendingUri.current = null; hadContent.current = false;
+    setState('idle'); setError(null); setFinalText(''); setInterim(''); setClips([]); setSeconds(0); setVolume(0);
   }, []);
 
-  const text = [finalText, interim.trim()].filter(Boolean).join(' ');
+  const text = join(finalText, interim);
+  const audioUri = clips.reduce<{ uri: string; seconds: number } | null>((best, c) => !best || c.seconds > best.seconds ? c : best, null)?.uri ?? null;
   return { state, error, text, volume, audioUri, seconds, start, stop, reset };
 }

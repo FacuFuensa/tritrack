@@ -8,7 +8,8 @@ const SIZE = 96;
 
 // Botón grande de micrófono. Grabando: se vuelve rojo, dos anillos laten hacia
 // afuera y el núcleo crece con el volumen de la voz.
-export default React.memo(function RecordButton({ recording, busy, volume, onPress }: { recording: boolean; busy?: boolean; volume: number; onPress: () => void }) {
+// resume: ya hay algo grabado y tocar sigue desde ahí.
+export default React.memo(function RecordButton({ recording, busy, volume, resume, onPress }: { recording: boolean; busy?: boolean; volume: number; resume?: boolean; onPress: () => void }) {
   const pulse = useRef(new Animated.Value(0)).current;
   const level = useRef(new Animated.Value(0)).current;
 
@@ -32,7 +33,7 @@ export default React.memo(function RecordButton({ recording, busy, volume, onPre
     {recording && ring(0)}
     {recording && ring(0.5)}
     <Animated.View pointerEvents="none" style={[styles.glow, { opacity: recording ? 0.35 : 0, transform: [{ scale: level.interpolate({ inputRange: [0, 1], outputRange: [1, 1.35] }) }] }]} />
-    <Pressable accessibilityRole="button" accessibilityLabel={recording ? 'Terminar de grabar' : 'Grabar audio'} disabled={busy} onPress={() => { void Haptics.impactAsync(recording ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Medium); onPress(); }} style={({ pressed }) => [styles.button, recording && styles.recording, (pressed || busy) && styles.pressed]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={recording ? 'Terminar de grabar' : resume ? 'Seguir grabando' : 'Grabar audio'} disabled={busy} onPress={() => { void Haptics.impactAsync(recording ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Medium); onPress(); }} style={({ pressed }) => [styles.button, recording && styles.recording, (pressed || busy) && styles.pressed]}>
       {recording ? <Square size={30} color={Colors.textPrimary} fill={Colors.textPrimary} /> : <Mic size={40} color={Colors.textPrimary} />}
     </Pressable>
   </View>;
