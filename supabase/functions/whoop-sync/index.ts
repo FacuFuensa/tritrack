@@ -1,8 +1,12 @@
 // Edge Function: trae recuperación, sueño y strain de WHOOP y los guarda en
 // recovery_daily, una fila por día.
-// verify_jwt=false a nivel gateway (CORS preflight); auth adentro con getUser.
-import { createClient } from "jsr:@supabase/supabase-js@2";
-import { brokenScope } from "../_shared/connection.ts";
+// verify_jwt=false a nivel gateway (CORS preflight); auth adentro, de dos maneras:
+// - la app, con el JWT del usuario (getUser): sincroniza a ese usuario.
+// - pg_cron, todos los días, con la clave compartida de push_config (header
+//   x-tc-key, igual que send-reminders): sincroniza a todos los de whoop_tokens.
+//   WHOOP no tiene webhook; sin esto la recuperación solo entraba al abrir la app.
+import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
+import { brokenScope, isBroken } from "../_shared/connection.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -51,21 +55,10 @@ async function fetchAll(path: string, token: string, startISO: string) {
   return out;
 }
 
-Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
-
-  const jwt = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
-  const admin = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
-
-  const { data: userData, error: userErr } = await admin.auth.getUser(jwt);
-  if (userErr || !userData.user) return json({ error: "unauthorized" }, 401);
-  const userId = userData.user.id;
-
-  const { data: tokens } = await admin.from("whoop_tokens").select("*").eq("user_id", userId).maybeSingle();
-  if (!tokens) return json({ error: "not connected" }, 400);
+// Sincroniza a un usuario a partir de su fila de whoop_tokens. Devuelve la
+// misma respuesta que ve la app.
+async function syncUser(admin: SupabaseClient, tokens: any): Promise<Response> {
+  const userId: string = tokens.user_id;
 
   // Refresh muerto o acceso revocado: se marca la conexión como rota (sin
   // borrar el token) y se avisa con 409 para que la app ofrezca "Reconectar".
@@ -178,4 +171,44 @@ Deno.serve(async (req: Request) => {
     with_recovery: conDatos.length,
     latest: rows.sort((a, b) => b.date.localeCompare(a.date))[0] ?? null,
   });
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+
+  const admin = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+
+  // Llamada de servidor (pg_cron). Una conexión ya marcada como rota no se
+  // reintenta: el refresh token está muerto y solo lo arregla "Reconectar".
+  const key = req.headers.get("x-tc-key");
+  if (key !== null) {
+    const { data: cfg } = await admin.from("push_config").select("shared_key").single();
+    if (!cfg || key !== cfg.shared_key) return json({ error: "forbidden" }, 403);
+
+    const { data: all, error } = await admin.from("whoop_tokens").select("*");
+    if (error) return json({ error: "tokens read failed", detail: error.message }, 500);
+
+    const results: Record<string, unknown>[] = [];
+    for (const tokens of all ?? []) {
+      if (isBroken(tokens.scope)) {
+        results.push({ user_id: tokens.user_id, status: 409, error: "reauth" });
+        continue;
+      }
+      const res = await syncUser(admin, tokens);
+      results.push({ user_id: tokens.user_id, status: res.status, ...(await res.json()) });
+    }
+    return json({ users: results.length, results });
+  }
+
+  const jwt = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
+  const { data: userData, error: userErr } = await admin.auth.getUser(jwt);
+  if (userErr || !userData.user) return json({ error: "unauthorized" }, 401);
+
+  const { data: tokens } = await admin.from("whoop_tokens").select("*").eq("user_id", userData.user.id).maybeSingle();
+  if (!tokens) return json({ error: "not connected" }, 400);
+
+  return await syncUser(admin, tokens);
 });
